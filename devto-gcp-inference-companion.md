@@ -216,9 +216,9 @@ Small models scale out. On a v5e-4, four one-chip E2B engines serve 1.39x the ou
 
 ---
 
-#### 🔎 Tip: Quota Does Not Mean Availability
+#### 🔎 Tip: Quota Lets You Ask, Availability Decides
 
-A TPU create passes three checks: hardware in the zone, the provisioning model offered there, and capacity at that moment. Quota answers none of them. 37 zones report v6e quota; 18 offer v6e-1 hardware. Three of five zones holding 1,536 chips of quota returned stockout. us-central1-b has hardware, quota and a flex-start price, and rejects flex-start. Check capacity with a spot request: it fails fast with "reason: stockout", where a flex-start request with no quota queues as PENDING exactly like a stockout.
+Quota is permission to request a TPU. Availability decides whether the request gets hardware, through three checks: hardware in the zone, the provisioning model offered there, and capacity at that moment. 37 zones report v6e quota; 18 offer v6e-1 hardware. Three of five zones holding 1,536 chips of quota returned stockout. us-central1-b has hardware, quota and a flex-start price, and rejects flex-start. Check capacity with a spot request: it fails fast with "reason: stockout", where a flex-start request with no quota queues as PENDING exactly like a stockout.
 
 Ask for fewer chips. In europe-west4-a a v6e-8 flex-start request expired after 26 minutes, and a v6e-4 was granted at once less than an hour later.
 
@@ -312,7 +312,7 @@ The goal of this article was to serve Gemma 4 on a Cloud TPU in one command, the
 - 🟢 **Flex-start halves on-demand** on every generation, and can undercut spot.
 - ⚠️ **Cold start takes 8.5 to 16.4 minutes**, most of it XLA compile; cache it.
 - ⚠️ **One-stream decode follows bandwidth**: 122 to 154 tok/s per TB/s on v5e, v6e and the L4.
-- ❌ **Quota does not reserve hardware**: 37 zones report v6e quota, 18 have v6e-1 hardware, and full-quota zones still stock out.
+- ❌ **Quota is permission to request; availability decides the grant**: 37 zones report v6e quota, 18 have v6e-1 hardware, and zones holding full quota still return stockout.
 
 Scope: the hands-on steps ran on one flex-start v5e-1 in us-west4-a on 2026-10-25, `google/gemma-4-E2B-it` in bf16 on `vllm/vllm-tpu:v0.30.0`, three demo runs and one long-context request per depth. The rest covers Gemma 4 E2B to 31B on Cloud TPU v5e and v6e, measured in the gemma4-dev rigs between July and October 2026 with vLLM and tpu-inference; L4 on Google Cloud g2 and AWS g6; MI300X on DigitalOcean; Inferentia2 and Trainium on AWS. The cross-vendor tokens-per-dollar table mixes vLLM builds, hosts and repeat counts, so it shows direction. v5p, TPU7x and Blackwell figures are Google's published specifications and list prices, read on 2026-10-12 and re-read on 2026-10-25 with the same values; spot prices are dated Billing Catalog reads.
 
