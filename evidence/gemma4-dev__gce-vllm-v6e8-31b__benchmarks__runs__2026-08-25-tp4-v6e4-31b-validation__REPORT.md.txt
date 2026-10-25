@@ -1,0 +1,47 @@
+Excerpt of /home/xbill/gemma4-dev/gce-vllm-v6e8-31b/benchmarks/runs/2026-08-25-tp4-v6e4-31b-validation/REPORT.md lines 7-16, 67-76, 100-119, copied 2026-10-25
+
+----- lines 7-16 -----
+7: ## What ran
+8: 
+9: | | |
+10: | :--- | :--- |
+11: | checkpoint | `google/gemma-4-31B-it`, bf16 |
+12: | hardware | **`ct6e-standard-4t`** — 4 v6e chips, NOT the 8 this rig is named for |
+13: | zone / model | `europe-west4-a`, FLEX_START, granted immediately |
+14: | TP | **4** |
+15: | serving | `vllm/vllm-tpu:nightly` (floating — see caveats), `--max-model-len 32768` |
+16: | duration / cost | ~57 min, ~$5.13 at $1.35/chip-hr |
+
+----- lines 67-76 -----
+67: ## Result 3 — throughput is 2.34x off the paper, and the log says why
+68: 
+69: `vllm bench serve`, batch 256, 32-token prompts, `--random-output-len 128 --ignore-eos`, greedy:
+70: 
+71: | | Zimbres TP=4 (heuristic) | this run |
+72: | :--- | ---: | ---: |
+73: | output tok/s | 4,752 | **2,031** |
+74: | ITL | 51.7 ms | **120.0 ms** |
+75: 
+76: Throughput ratio 2.34x, ITL ratio 2.32x — consistent, so it is a per-decode-step cost, not scheduling.
+
+----- lines 100-119 -----
+100: Cache restored in 337s. Serving offline; no Hugging Face download needed.
+101: ```
+102: 
+103: **5.6 minutes in-region**, against the 60-90 minute Hugging Face pull the boot budget was sized for. First
+104: exercise of the restore leg; it worked on the first real boot. Engine init after that was 427.9 s
+105: (compilation 399.6 s), which is now the dominant term in time-to-serve.
+106: 
+107: ## Capacity: the finding nobody asked for
+108: 
+109: Five provisioning attempts, and the pattern is itself a result:
+110: 
+111: | ask | zone | model | outcome |
+112: | :--- | :--- | :--- | :--- |
+113: | 8 chips | europe-west4-a | flex-start | queued 26 min, expired: **not enough resources** |
+114: | 8 chips | us-east1-b, us-east5-a, us-east5-b, asia-northeast1-b | spot | **ZONE_RESOURCE_POOL_EXHAUSTED** |
+115: | 8 chips | us-central1-b | spot | granted, **preempted at ~6 min**, never served |
+116: | **4 chips** | **europe-west4-a** | **flex-start** | **granted instantly** |
+117: 
+118: Eight chips stocked out in europe-west4-a and four were granted in the same zone under an hour later.
+119: **For CAPACITY, the size of the ask is the variable.** Note this does not contradict the rule in

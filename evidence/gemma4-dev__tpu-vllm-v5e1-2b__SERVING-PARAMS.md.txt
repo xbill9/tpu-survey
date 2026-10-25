@@ -1,0 +1,16 @@
+Excerpt of /home/xbill/gemma4-dev/tpu-vllm-v5e1-2b/SERVING-PARAMS.md lines 37-42, 76-80, copied 2026-10-25
+
+----- lines 37-42 -----
+37: | `--max-model-len` | **32768** | measured equal-or-better than 16384 on every cell (+4.4% at 1K/16), costs **no** KV capacity, and boots *faster* (857 s vs 1,089 s) |
+38: | `--max-num-batched-tokens` | **4096** | provably optimal in (2048, 4096] — see below |
+39: | `--max-num-seqs` | **unset (256)** | capping it to 64 was measured **worse**; the cap never binds below 64 offered load |
+40: | `--kv-cache-dtype` | **auto** | fp8 measured 1.000x capacity and ~2% slower; `auto` is fully determined once `--dtype` is pinned |
+41: | `--dtype` | **bfloat16** | no weight-quantization route boots (`@QUANTIZATION.md`) |
+42: | `--gpu-memory-utilization` | **0.92** | 0.95 fails after a 691 s compile; measured twice |
+
+----- lines 76-80 -----
+76: 
+77: **Mount the compile cache.** `/root/.cache/vllm` (197 MB) is container-local and destroyed on
+78: `docker rm`. Compile is 685 s of an 857 s cold boot; mounting it cuts a restart to **497 s (−42%)**,
+79: reproduced twice. `startup_script_template.sh` does not do this — adding it is the single highest-value
+80: operational change available.

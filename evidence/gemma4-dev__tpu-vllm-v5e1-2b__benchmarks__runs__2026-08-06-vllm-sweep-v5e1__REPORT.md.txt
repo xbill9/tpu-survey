@@ -1,0 +1,19 @@
+Excerpt of /home/xbill/gemma4-dev/tpu-vllm-v5e1-2b/benchmarks/runs/2026-08-06-vllm-sweep-v5e1/REPORT.md lines 17-32, copied 2026-10-25
+
+----- lines 17-32 -----
+17: ## Headline
+18: 
+19: | | value |
+20: | :--- | ---: |
+21: | Peak aggregate output | **1,382 tok/s** (ctx 128, c=64) |
+22: | Single-stream output | 120 tok/s @ 15.9 ms median TTFT, 8.05 ms TPOT |
+23: | Cost per M output tokens | **$0.12** at saturation · $1.34 single-stream |
+24: | Spot rate | $0.5779 / chip-hour (us-west4, live catalog) |
+25: | Time to healthy (cold) | 986 s, of which 738 s is XLA/JAX compile |
+26: 
+27: ## Cold start is compilation, not weights
+28: 
+29: Engine init took 814 s of the 986 s to healthy, and **compilation alone was 738 s — 91% of init**.
+30: Weight download was 9.8 s for a 9.54 GiB checkpoint. On spot capacity this matters more than it
+31: looks: a preemption repays the full ~16 minutes, so the effective cost of an interruption is far
+32: above the per-hour rate difference between spot and on-demand.

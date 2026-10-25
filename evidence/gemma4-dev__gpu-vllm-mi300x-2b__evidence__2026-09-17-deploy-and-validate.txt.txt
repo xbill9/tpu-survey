@@ -1,0 +1,26 @@
+Excerpt of /home/xbill/gemma4-dev/gpu-vllm-mi300x-2b/evidence/2026-09-17-deploy-and-validate.txt lines 1-12, 22-30, copied 2026-10-25
+
+----- lines 1-12 -----
+1: Captured 2026-09-17 from the workstation against droplet
+2: debian-gpu-mi300x1-192gb-devcloud-atl1 (601418522), region atl1.
+3: Verbatim tool output; the workstation has no AMD GPU.
+4: 
+5: $ droplet_status
+6: 📡 **debian-gpu-mi300x1-192gb-devcloud-atl1** (601418522)
+7: - status: `active`
+8: - size: `gpu-mi300x1-192gb-devcloud` — 20 vCPU, 240 GB RAM, 720 GB disk
+9: - region: atl1
+10: - public IPv4: <masked>
+11: - cost: $1.99/hr — **billed while powered off, too**
+12:   (source: DigitalOcean v2 API, droplet.size.price_hourly, read 2026-09-17)
+
+----- lines 22-30 -----
+22: $ deploy_vllm
+23: ✅ Started `vllm` serving `google/gemma-4-E2B-it`.
+24: - image: `vllm/vllm-openai-rocm:nightly-rocm100`
+25: - context: 32768, gpu-memory-utilization 0.90
+26: - multimodal: `{"image": 4, "audio": 0}`
+27: 
+28: # poll of /v1/models over SSH, every 10s from the moment `docker run` returned:
+29: READY after 160s
+30: {"object":"list","data":[{"id":"google/gemma-4-E2B-it","max_model_len":32768,...}]}

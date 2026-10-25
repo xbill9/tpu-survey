@@ -1,0 +1,118 @@
+Excerpt of /home/xbill/gemma4-dev/HARDWARE.md lines 11-31, 35-51, 74-86, 95-108, 218-233, 669-676, 715-728, copied 2026-10-25
+
+----- lines 11-31 -----
+11: ## Native numeric format support — the table that decides quantization strategy
+12: 
+13: | Generation | bf16 | int8 | **fp8** | Notes |
+14: | :--- | :---: | :---: | :---: | :--- |
+15: | v5e | yes | yes (2x bf16) | **no** | Google publishes bf16 and Int8 peaks only |
+16: | v5p | yes | yes | **treat as no** | The v5p page lists bf16 **and FP8 at the same 459 TFLOPs**. Equal peaks buy no compute win even if the path is real, so no quantization conclusion changes. Unmeasured here — see the v5p note below |
+17: | v6e (Trillium) | yes | yes (2x bf16) | **no** | same pattern — verified 2026-08-10, see below |
+18: | v7 (Ironwood / TPU7x) | yes | yes | **yes** | first TPU with fp8 in the MXU |
+19: 
+20: **This is the single most consequential fact for quantization work.** On v5e and v6e:
+21: 
+22: - **int8 is the only low-precision format with a compute win.** Both generations quote int8 at exactly
+23:   2x their bf16 peak, the signature of a genuinely native MXU path.
+24: - **The v6e fp8 absence is now confirmed at the source, not inferred.** Google's v6e page lists exactly
+25:   three peak-compute rows — `bf16: 918 TFLOPs`, `Int8: 1836 TOPs`, and a per-Pod bf16 figure — and **no
+26:   fp8 row anywhere** (checked 2026-08-10). This was previously read off a second-hand spec set.
+27: - **fp8 is storage-only.** Values widen back to bf16 before the matmul, so fp8 can buy footprint and
+28:   bandwidth but never FLOPS. A benchmark showing no speedup from fp8 on these chips is the expected
+29:   result, not a misconfiguration.
+30: - **4-bit has no MXU path either.** int4 weights buy footprint and bandwidth, then unpack for compute.
+31: 
+
+----- lines 35-51 -----
+35: ## Per-chip specifications
+36: 
+37: v5p sits in its own table further down — it is a different product line (the "p" scale-up part, not the
+38: "e" efficiency part), and folding it into a v5e-vs-v6e ratio column would invite exactly the wrong comparison.
+39: 
+40: | Spec | v5e | v6e (Trillium) | Ratio |
+41: | :--- | ---: | ---: | ---: |
+42: | HBM capacity | 16 GB | 32 GB | 2.0x |
+43: | HBM bandwidth | 800 GiBps | 1,638 GBps | **1.907x** — units differ, see note |
+44: | Peak bf16 | 197 TFLOPs | 918 TFLOPs | 4.66x |
+45: | Peak Int8 | 393 TOPs | 1,836 TOPs | 4.67x |
+46: | TensorCores | 1 (4 MXUs, 128x128) | 1 (2 MXUs, 256x256 — but see below) | |
+47: | ICI bandwidth | 400 GBps bidirectional, 4 ports | 800 GBps bidirectional, 4 ports | 2.0x |
+48: | Single-chip machine type | `ct5lp-hightpu-1t` | `ct6e-standard-1t` | |
+49: | Single-chip VM | — | 44 vCPU, 176 GB RAM | |
+50: | Peak bf16 per Pod | — | 234.9 PFLOPs (256 chips) | |
+51: | On-demand list | ~$1.20 / chip-hr | ~$2.70 / chip-hr | 2.25x |
+
+----- lines 74-86 -----
+74: across the US regions; europe-west4 quotes $2.97 and europe-west2 / asia-northeast1 / asia-south1 quote
+75: $3.24. In us-east5, **flex-start ($1.35/chip-hr) is cheaper than spot ($1.4033)** — the reverse of the
+76: v5e ordering, where spot undercut flex-start. Never assume spot is cheapest; read the catalog. The
+77: `estimate_deployment_cost` tool in the vLLM rigs does exactly that and reports nothing rather than
+78: guessing when no SKU matches.
+79: 
+80: **Units trap — confirmed on both pages 2026-08-10.** Google quotes v5e bandwidth as **`800 GiBps`** and
+81: v6e as **`1638 GBps`**, and the mismatch is real, not a transcription slip: the v5e page uses GiBps for
+82: HBM while using GBps for ICI on the same table. Normalized, 800 GiBps = **858.99 GB/s**, so the true
+83: ratio is **1.907x** — against a naive 1638/800 = 2.047x. Google's launch blog saying Trillium "doubled"
+84: HBM bandwidth is the naive reading. **Don't quote "2x the bandwidth"**; the 7% matters when the
+85: workload is bandwidth-bound, which decode is.
+86: 
+
+----- lines 95-108 -----
+95: ### v5e-1 — 16 GB nominal
+96: 
+97: Measured on `v5litepod-1` with vLLM:
+98: 
+99: | | GiB |
+100: | :--- | ---: |
+101: | Total HBM | 15.75 |
+102: | Usable at `gpu_memory_utilization=0.92` | **14.49** |
+103: 
+104: **14.49 GiB is the number to size against**, not 16. Weights plus KV must fit inside it. See `MODELS.md`
+105: for per-model weight footprints — the short version is that only E2B fits at bf16, and the 26B A4B
+106: W4A16 repack serves only with four loader changes that bring it to 13.58 GiB (`MODELS.md`, "The 26B W4A16
+107: repack on a v5e-1"). Its compile also needs more than the host's 48 GB: it peaked at 45.7 GB plus 2.75 GB of
+108: swap.
+
+----- lines 218-233 -----
+218: ## v5p — the scale-up part
+219: 
+220: Sourced from [the v5p page](https://docs.cloud.google.com/tpu/docs/v5p) and the live TPU API on 2026-08-10.
+221: **Nothing below is measured** — no rig here has booted a v5p yet. `tpu-vllm-v5p1-2b` is the first to target one.
+222: 
+223: | Spec | v5p | vs v5e |
+224: | :--- | ---: | ---: |
+225: | HBM capacity | **95 GiB** | 5.9x |
+226: | HBM bandwidth | 2,765 GBps | ~3.5x |
+227: | Peak bf16 | 459 TFLOPs | 2.33x |
+228: | TensorCores per chip | **2** | 2x |
+229: | MXUs | 4 per TensorCore | |
+230: | ICI bandwidth | 1,200 GBps bidirectional | 3.0x |
+231: | Chips per host | 4 (`ct5p-hightpu-4t`) | |
+232: | Smallest slice | **2x2x1 — 4 chips, 8 cores** | no 1-chip v5p *in the TPU API* — but see the CE-catalog caveat below |
+233: | Pod | 8,960 chips; 6,144 max schedulable | |
+
+----- lines 669-676 -----
+669: captures them as lowering constants and parks the whole tree in host RAM permanently.
+670: 
+671: ### Three failure modes with no TPU equivalent
+672: 
+673: 1. **A too-large gather returns zeros, not an error.** Above roughly 4–5 GB in a single device tensor,
+674:    a gather that "ran" can yield an all-zero result and execution continues. Zero logits make `argmax`
+675:    return token 0 — the pad id, which is in the EOS set — so the server returns a clean `200 OK` with
+676:    `finish_reason: "stop"` and **zero completion tokens**. Nothing in the response, the logs or
+
+----- lines 715-728 -----
+715: ### Native format support
+716: 
+717: | Format | MI300X (gfx942) | Note |
+718: | --- | :---: | :--- |
+719: | bf16 | **yes** | 1307.4 TFLOP/s peak — the baseline |
+720: | fp16 | yes | same matrix cores, same peak; not a change from bf16 |
+721: | fp8 `e4m3fnuz` | **yes** | 2614.9 TFLOP/s peak; **1.77x bf16 at 8192³, 1.50x at E2B decode shapes** |
+722: | fp8 `e4m3fn` | **no** | `HIPBLAS_STATUS_NOT_SUPPORTED` — the OCP flavour NVIDIA publishes |
+723: | int8 | runs, M > 16 only | equal peak on paper; **0.40–0.69x bf16 at 8192³, refuses M ≤ 16** — no win |
+724: | fp4 / MX | **no** | torch: `only supported on gfx950,gfx1250`. CDNA 4 |
+725: 
+726: **This is the first row in this file where fp8 is a genuine compute format**, and it inverts the
+727: v5e/v6e conclusion at the top: there fp8 is storage-only and int8 is the sole compute win. Here fp8
+728: is the sole compute win and int8 measures *slower than bf16*. **Do not carry a TPU quantization

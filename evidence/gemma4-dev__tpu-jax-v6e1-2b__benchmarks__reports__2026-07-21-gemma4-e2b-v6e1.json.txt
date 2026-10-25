@@ -1,0 +1,18 @@
+Excerpt of /home/xbill/gemma4-dev/tpu-jax-v6e1-2b/benchmarks/reports/2026-07-21-gemma4-e2b-v6e1.json lines 187-201, copied 2026-10-25
+
+----- lines 187-201 -----
+187:   "memory": {
+188:     "usable_hbm_gib": 31.24,
+189:     "weights_gib": 5.75,
+190:     "kv_cache_gib": 16.3,
+191:     "workspace_gib": 6,
+192:     "kv_bytes_per_token": 7680,
+193:     "resident_kv_tokens": 1100000,
+194:     "notes": "Measured on a bf16-KV boot at 0.9 utilization (28.12 GiB working set); kv_bytes_per_token/resident_kv_tokens are for the default fp8_e5m2 cache. fp8 vs bf16 KV: 6 of 6 greedy outputs byte-identical."
+195:   },
+196:   "startup": {
+197:     "time_to_healthy_s": 510,
+198:     "engine_init_s": 404,
+199:     "compile_s": 329,
+200:     "notes": "From VM RUNNING: Docker ~60s, image pull ~360s, weights+compile+health ~510s. 200 GB boot disk required; 10 GB default cannot hold the vLLM image."
+201:   },

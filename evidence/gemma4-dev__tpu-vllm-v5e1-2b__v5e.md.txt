@@ -1,0 +1,61 @@
+Excerpt of /home/xbill/gemma4-dev/tpu-vllm-v5e1-2b/v5e.md lines 20-30, 276-320, copied 2026-10-25
+
+----- lines 20-30 -----
+20: 
+21: | Spec (per chip) | TPU v5e (`v5litepod`) | TPU v6e (Trillium) | Ratio |
+22: | --- | --- | --- | --- |
+23: | HBM capacity | 16 GB | 32 GB | 2.0× |
+24: | HBM bandwidth | 800 GiBps | 1,638 GBps | ~2× |
+25: | Peak BF16 | 197 TFLOPs | 918 TFLOPs | 4.66× |
+26: | Peak INT8 | 393 TOPs | 1,836 TOPs | 4.67× |
+27: | Single-chip machine type | `ct5lp-hightpu-1t` | `ct6e-standard-1t` | — |
+28: | On-demand list | ~$1.20 / chip-hr | ~$2.70 / chip-hr | 2.25× |
+29: | Flex-start (see below) | ~$0.60 / chip-hr | ~$1.35 / chip-hr | 2.25× |
+30: 
+
+----- lines 276-320 -----
+276: | Configuration | Flex-start (derived) | On-demand (list) |
+277: | --- | ---: | ---: |
+278: | TPU v5e-1 (16 GB HBM) | ~$0.60 / hr | **$1.20 / hr** |
+279: | TPU v6e-1 (32 GB HBM) | ~$1.35 / hr | **$2.70 / hr** |
+280: | TPU v6e-4 (128 GB HBM) | ~$5.40 / hr | ~$10.80 / hr |
+281: | GCE 1× NVIDIA L4 (24 GB) | ~$0.30 / hr (spot) | ~$1.00 / hr |
+282: | GCE 8× NVIDIA L4 (192 GB) | ~$2.40 / hr (spot) | ~$8.00 / hr |
+283: | Cloud Run 1× L4 (serverless) | — | ~$1.20–1.50 / hr active |
+284: | AWS EC2 `g6.xlarge` (1× L4) | ~$0.35 / hr (spot) | ~$0.97 / hr |
+285: | Azure `NVadsA10v5` (1× A10G) | ~$0.35 / hr (spot) | ~$1.05 / hr |
+286: 
+287: Measured from the Cloud Billing Catalog for `us-west4` (Las Vegas) on 2026-08-06, per chip-hour:
+288: 
+289: | Provisioning model | SKU | Rate |
+290: | --- | --- | --- |
+291: | On-demand | `TpuV5e running in Las Vegas` | $1.2000 |
+292: | Flex-start | `DWS Defined Duration V5e running in Las Vegas` | $0.6000 |
+293: | Spot | `TpuV5e attached to Spot Preemptible VMs running in Las Vegas` | $0.5779 |
+294: | Reserved (calendar) | `Reserved V5e TPU in Las Vegas in Calendar Mode` | $0.8400 |
+295: | 1yr / 3yr commitment | `Commitment v1: TpuV5e …` | $0.8400 / $0.5400 |
+296: 
+297: Spot lands just under flex-start — a 3.7% gap, not the large discount its reputation suggests — and buys that with preemption at 30 seconds' notice instead of flex-start's bounded run duration. Note the catalog calls flex-start "DWS Defined Duration" (Dynamic Workload Scheduler).
+298: 
+299: Rates vary by region and change, so don't quote the table above as current: `estimate_deployment_cost` in `server.py` now reads these live from the Billing Catalog API and reports nothing at all when a SKU is missing. It used to carry a hardcoded `"v5e": 0.12`, off by 10x against the $1.20 list rate — which is the argument against hardcoded rate tables generally, including any transcribed from here.
+300: 
+301: A published price is not an offer of capacity: `europe-west4` quotes a flex-start v5e rate while the API still refuses to provision `v5litepod-1` there.
+302: 
+303: **Cost per million output tokens**, computed directly from the measured sweep:
+304: 
+305: | Concurrency | Context | Output tok/s | Flex ($0.60/hr) | On-demand ($1.20/hr) |
+306: | ---: | ---: | ---: | ---: | ---: |
+307: | 1 | 128 | 126.9 | $1.314 / M | $2.627 / M |
+308: | 4 | 128 | 432.5 | $0.385 / M | $0.771 / M |
+309: | 16 | 128 | 1,076.9 | $0.155 / M | $0.310 / M |
+310: | 64 | 128 | 1,877.7 | **$0.089 / M** | $0.178 / M |
+311: | 16 | 1,024 | 938.8 | $0.178 / M | $0.355 / M |
+312: | 64 | 1,024 | 1,474.9 | $0.113 / M | $0.226 / M |
+313: | 16 | 4,096 | 612.8 | $0.272 / M | $0.544 / M |
+314: | 64 | 4,096 | 822.9 | $0.203 / M | $0.405 / M |
+315: 
+316: The headline: **$0.089 per million output tokens** at peak batching on flex-start.
+317: 
+318: The more useful headline is the spread. The *same chip*, *same model*, *same hour of billing*, run at concurrency 1 instead of 64, costs **14.8× more per token**. Idle TPU is the entire cost story. An agent rig that sits at concurrency 1 is paying $1.31/M for tokens it could be getting at $0.09/M.
+319: 
+320: Which leads to the real cost question for a devops agent: your workload probably *is* concurrency 1. An SRE assistant answering one operator's question is a single stream, and no amount of tuning turns one operator into a batch of 64.

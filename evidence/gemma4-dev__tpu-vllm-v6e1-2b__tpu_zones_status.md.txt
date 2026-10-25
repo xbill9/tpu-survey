@@ -1,0 +1,39 @@
+Excerpt of /home/xbill/gemma4-dev/tpu-vllm-v6e1-2b/tpu_zones_status.md lines 15-50, copied 2026-10-25
+
+----- lines 15-50 -----
+15: Quota is not availability. A non-zero limit only means creation is permitted; the zone still has to have
+16: v6e-1 hardware and grant the capacity. Of the zones listed here, the billing catalog publishes a flex-start
+17: (`DWS Defined Duration V6e`) rate in only eight regions — us-east5, us-central1, us-south1, europe-west4,
+18: asia-northeast1, asia-southeast1, southamerica-east1, and southamerica-west1.
+19: 
+20: ## Three separate gates, established 2026-08-10
+21: 
+22: A creation has to clear all three, and they fail differently. **Quota is the weakest signal of the three.**
+23: 
+24: **1. Does the zone have `v6e-1` hardware at all?** 37 zones report quota; only **18** offer the accelerator
+25: type, per `gcloud compute tpus accelerator-types list --filter="type=v6e-1"`. This is model-independent —
+26: it applies to spot and on-demand exactly as much as to flex-start, which is why it is recorded here in
+27: prose and not as per-model `No` rows below.
+28: 
+29: > **Has `v6e-1`:** us-east5-a/b/c, us-central1-a/b/c, us-south1-a/c, us-west1-c, us-east1-d,
+30: > europe-west4-a, asia-northeast1-b, asia-southeast1-b, asia-east1-c, asia-south1-b/c,
+31: > southamerica-west1-a, southamerica-east1-c.
+32: >
+33: > **Quota but NO hardware:** us-central1-f, us-south1-b, us-west1-a/b, us-east1-b/c, us-east4-c,
+34: > europe-west4-b/c, asia-northeast1-a/c, asia-east1-a/b, asia-south1-a, asia-southeast1-a/c,
+35: > southamerica-east1-a/b, southamerica-west1-b/c.
+36: 
+37: **Google's own docs undercount this.** The regions-zones page names 8 zones for v6e; the API accepts 18.
+38: Prefer the API — the docs table is a strict subset.
+39: 
+40: **2. Does the zone offer that provisioning model for that accelerator type?** Independent of both quota and
+41: hardware, and this is where a published rate stops meaning anything. **us-central1-b and us-south1-a both
+42: have v6e-1 hardware, quota, and a published `DWS Defined Duration V6e` rate for their region — and both
+43: reject flex-start at the API**: `FLEX_START provisioning model is not supported for accelerator type
+44: "v6e-1" in location "<zone>"`. This is the v6e analogue of the v5e result where flex-start `v5litepod-1`
+45: was accepted in exactly one zone out of 44. It is recorded per-model in the table below.
+46: 
+47: **3. Is there free capacity right now?** Only reachable after the first two pass, and it is the one gate
+48: that is not a property of the zone — it changes minute to minute and is never cached here. us-east5-b
+49: produced no v6e-1 under **either** spot or flex-start across ~70 minutes on 2026-08-10, while accepting
+50: both requests without error. `WAITING_FOR_RESOURCES` is this gate, and it is not a failure.

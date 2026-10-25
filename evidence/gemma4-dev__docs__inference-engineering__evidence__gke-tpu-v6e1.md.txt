@@ -1,0 +1,14 @@
+Excerpt of /home/xbill/gemma4-dev/docs/inference-engineering/evidence/gke-tpu-v6e1.md lines 83-93, copied 2026-10-25
+
+----- lines 83-93 -----
+83: serving pod** via `kubectl exec` rather than in a second container over SSH:
+84: 
+85: | Concurrency | Output tok/s | TTFT p99 | TPOT mean | $/M output tokens |
+86: | ---: | ---: | ---: | ---: | ---: |
+87: | 1 | 199 | 17 ms | 5.0 ms | $4.14 |
+88: | 8 | 1180 | 48 ms | 6.7 ms | $0.70 |
+89: | 32 | 1508 | 355 ms | — | $0.55 |
+90: 
+91: 1024 in / 128 out, one run per point. Filed as `benchmarks/reports/2026-08-25-gemma4-e2b-v6e1.json`
+92: (schema 1.1) — **the rig's first real measurement**. Chip cost only, at the europe-west4 on-demand list
+93: rate of $2.97/chip-h read live from the Billing Catalog; spot lists at $1.782 and flex-start at $1.35.

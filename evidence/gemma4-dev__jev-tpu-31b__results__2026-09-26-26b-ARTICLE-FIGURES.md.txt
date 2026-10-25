@@ -1,0 +1,37 @@
+Excerpt of /home/xbill/gemma4-dev/jev-tpu-31b/results/2026-09-26-26b-ARTICLE-FIGURES.md lines 17-35, 92-104, copied 2026-10-25
+
+----- lines 17-35 -----
+17: ## Accuracy, W4A16 against FP8 (2026-09-26-moe2-VS-FP8.json)
+18: 
+19: ### FP8 (ref) against TPU W4A16
+20: 
+21: - sst2: ref 94.7%, test 95.0%, difference +0.3 points (-0.7 to +1.7); 1 right->wrong, 2 wrong->right
+22: - ag_news: ref 86.0%, test 86.0%, difference +0.0 points (-1.7 to +1.7); 4 right->wrong, 4 wrong->right
+23: - emotion: ref 58.3%, test 60.0%, difference +1.7 points (-0.3 to +4.0); 3 right->wrong, 8 wrong->right
+24: - irony: ref 91.0%, test 90.7%, difference -0.3 points (-2.3 to +2.0); 6 right->wrong, 5 wrong->right
+25: - reversed options (3 choice tasks): ref 79.4%, test 79.8%, difference +0.3 points (-0.6 to +1.3); 8 right->wrong, 11 wrong->right
+26: - suite (all subsets): ref 76.0%, test 75.3%, difference -0.7 points (-1.5 to +0.1); 133 right->wrong, 106 wrong->right
+27: 
+28: ### TPU W4A16 (ref) against L4 W4A16
+29: 
+30: - sst2: ref 95.0%, test 94.7%, difference -0.3 points (-1.0 to +0.0); 1 right->wrong, 0 wrong->right
+31: - ag_news: ref 86.0%, test 86.0%, difference +0.0 points (-1.0 to +1.0); 1 right->wrong, 1 wrong->right
+32: - emotion: ref 60.0%, test 60.0%, difference +0.0 points (+0.0 to +0.0); 0 right->wrong, 0 wrong->right
+33: - irony: ref 90.7%, test 91.0%, difference +0.3 points (+0.0 to +1.0); 0 right->wrong, 1 wrong->right
+34: - reversed options (3 choice tasks): ref 79.8%, test 79.7%, difference -0.1 points (-0.6 to +0.2); 2 right->wrong, 1 wrong->right
+35: - suite (all subsets): ref 75.3%, test 76.0%, difference +0.7 points (+0.3 to +1.1); 16 right->wrong, 42 wrong->right
+
+----- lines 92-104 -----
+92: ## Capacity and speed
+93: 
+94: - bf16 at TP=4 on a v6e-4: 1982.0 output tok/s, 235,008 KV tokens (boot log), 61.16 GiB over 4 chips
+95: - W4A16 at TP=4 on a v6e-4: 2072.9 output tok/s, 407,168 KV tokens (boot log), 21.75 GiB over 4 chips
+96: - KV tokens: W4A16 53,888, FP8 3,456, ratio 15.6x
+97: - output tok/s: W4A16 1283.3, FP8 668.4, ratio 1.92x
+98: 
+99: ## Cost per million output tokens (arithmetic)
+100: 
+101: - flex-start $1.35/chip-hour, W4A16: $0.29
+102: - flex-start $1.35/chip-hour, FP8: $0.56
+103: - on-demand $2.97/chip-hour, W4A16: $0.64
+104: - on-demand $2.97/chip-hour, FP8: $1.23

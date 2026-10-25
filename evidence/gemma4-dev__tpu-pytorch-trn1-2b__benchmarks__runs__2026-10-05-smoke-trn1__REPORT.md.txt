@@ -1,0 +1,8 @@
+Excerpt of /home/xbill/gemma4-dev/tpu-pytorch-trn1-2b/benchmarks/runs/2026-10-05-smoke-trn1/REPORT.md lines 20-24, copied 2026-10-25
+
+----- lines 20-24 -----
+20: | | E2B | 26B A4B |
+21: |---|---|---|
+22: | Image pull | 365 s | 195 s |
+23: | Pull to healthy | 171 s (server: `READY in 121.2s`) | 518 s (server: `READY in 220.1s`, includes fetching 27 GB of artifacts from Hugging Face) |
+24: | "What is the capital of France?" (greedy) | `Paris`, 3 of 3 | `Paris`, 3 of 3 |

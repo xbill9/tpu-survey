@@ -1,0 +1,21 @@
+Excerpt of /home/xbill/gemma4-dev/gpu-2B-cloudrun-devops-agent/docs/evidence/make-deploy.txt lines 1-18, copied 2026-10-25
+
+----- lines 1-18 -----
+1: # make deploy (2026-09-10, first deploy of this service) — captured 2026-09-10T11:53:47-04:00 on yoga9i, cwd gpu-2B-cloudrun-devops-agent
+2: 	--no-cpu-throttling \
+3: 	--concurrency=4 \
+4: 	--timeout=3600 \
+5: 	--startup-probe=timeoutSeconds=60,periodSeconds=60,failureThreshold=10,initialDelaySeconds=180,httpGet.port=8000,httpGet.path=/health \
+6: 	--scaling=auto \
+7: 	--max-instances=1 \
+8: 	--min-instances=0 \
+9: 	--port=8000 \
+10: 	--memory=32Gi \
+11: 	--cpu=8 \
+12: 	--execution-environment=gen2 \
+13: 	--add-volume=name=model-volume,type=cloud-storage,bucket=aisprint-491218-bucket,readonly=true \
+14: 	--add-volume-mount=volume=model-volume,mount-path=/mnt/models \
+15: 	--args=--model=/mnt/models/gemma-4-E2B-it,--dtype=bfloat16,--max-model-len=16384,--disable-chunked-mm-input,--gpu-memory-utilization=0.95,--kv-cache-dtype=fp8,--tensor-parallel-size=1,--max-num-seqs=8,--enable-chunked-prefill,--max-num-batched-tokens=4096,--enable-auto-tool-choice,--tool-call-parser=gemma4,--reasoning-parser=gemma4,--async-scheduling,--limit-mm-per-prompt={},--host=0.0.0.0,--port=8000 \
+16: 	--no-allow-unauthenticated \
+17: 	--region=us-east4 \
+18: 	--set-env-vars=VLLM_ENABLE_CUDA_COMPATIBILITY=0

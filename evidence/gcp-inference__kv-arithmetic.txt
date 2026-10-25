@@ -1,0 +1,12 @@
+Arithmetic over the vLLM log lines in gcp-inference__vllm-tpu-*.log.txt, computed 2026-10-25 with python3
+KV bytes per token per layer: 1024
+KV bytes per token, 15 layers: 15360
+token slots: 1255 x 256 = 321280
+KV tensors GiB: 4.60
+one 131072-token request, KV GiB: 1.875
+slots / 131072 = 2.45; slots / 8192 = 39.22
+HBM cap / limit: 14.49 / 15.75 = 0.92
+HBM after KV minus after weights: 14.51 - 8.97 = 5.54 GiB
+left unallocated: 15.75 - 14.51 = 1.24 GiB
+compile share of engine init, 8192: 408.59/502.84 = 81.3%; 131072: 413.41/503.54 = 82.1%
+124949/321280 = 38.9 % of KV slots

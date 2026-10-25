@@ -1,0 +1,188 @@
+Excerpt of /home/xbill/gemma4-dev/QUANTIZATION.md lines 177-181, 199-245, 296-303, 344-394, 540-546, 594-650, copied 2026-10-25
+
+----- lines 177-181 -----
+177: | **qwix PTQ** — int8/int4/fp8, weight-only or W8A8 | `models/jax/utils/qwix/` | reachable, but **does not boot** — see below |
+178: | compressed-tensors fp8 w8a8 | `layers/jax/quantization/compressed_tensors.py` | yes (needs a pre-quantized ckpt) |
+179: | compressed-tensors **w4a16 / wNa16** | nowhere on the JAX path in the stock image | **no — `NotImplementedError`**; yes with [#3653](https://github.com/vllm-project/tpu-inference/pull/3653) (merged into `main` 2026-09-27), see "W4A16 on the JAX path" |
+180: | **mxfp4** (4-bit) | `layers/jax/quantization/mxfp4.py` | **no — MoE-only**, see below |
+181: | compressed-tensors **int8 w8a8** | `layers/vllm/.../schemes/` | no on the stock image; **yes with `jev-tpu-v5e1/patches/lowmem.diff`**, see "int8 W8A8 and int4 vocabulary tables" |
+
+----- lines 199-245 -----
+199: ### W4A16 on the JAX path: three patches make every size serve on one v6e chip
+200: 
+201: **MEASURED 2026-09-25** on one v6e chip at `vllm/vllm-tpu@sha256:19a1a052…`, with three patches applied to
+202: the image's `tpu_inference`. All three were unmerged when measured; since then #3653 has merged into `main` (2026-09-27) and #3654
+203: was closed, while #3299 and #3660 are open. Every result in this section needs them; the measured image
+204: predates the merge and still fails as the 2026-09-24 bullets above say.
+205: Measurements, logs and the read's pre-registration are in `jev-tpu-31b/` (`results/2026-09-25-w4a16-*`,
+206: `results/2026-09-25-followup-*`, `PREREGISTRATION.md`).
+207: 
+208: | Patch | Pull request | Needed by |
+209: | :--- | :--- | :--- |
+210: | KV-shared layers own no K/V parameters | [#3299](https://github.com/vllm-project/tpu-inference/pull/3299) (fixes #3225) | E2B, E4B QAT exports |
+211: | JAX compressed-tensors W4A16 linear method on `gmm_v2` | [#3653](https://github.com/vllm-project/tpu-inference/pull/3653), merged 2026-09-27 | every `-qat-w4a16-ct` export |
+212: | ~~`Gemma4UnifiedForConditionalGeneration` text-only on JAX~~ | ~~[#3654](https://github.com/vllm-project/tpu-inference/pull/3654)~~ closed 2026-09-26 | 12B serves with a flag instead (below) |
+213: | JAX compressed-tensors W4A16 fused-MoE method | [#3660](https://github.com/vllm-project/tpu-inference/pull/3660), open, rebased onto `main` 2026-09-28 | 26B (below) |
+214: 
+215: Scope of #3653: symmetric int4, `group` or `channel` strategy, `pack-quantized`, no activation
+216: quantization — the format of every Google QAT release. Asymmetric, 8-bit, `actorder=group` and other
+217: formats still raise. Weights are unpacked on the host, so HBM holds half a byte per weight.
+218: 
+219: **The kernel path is the whole speed story.** `sharded_quantized_matmul` picks its implementation from
+220: the *rank of the scale*: a 3D `[in // group, 1, out]` scale routes to the `gmm_v2` Pallas kernel, which
+221: dequantizes each tile in VMEM; a 2D scale routes to `xla_quantized_matmul`, which rebuilds the
+222: full-precision weight in HBM on every call. Same weights, same numbers (the two agree to 2.4e-3), very
+223: different cost:
+224: 
+225: | Per layer, 16 tokens, device time | bf16 | 2D scale (XLA) | 3D scale (`gmm_v2`) |
+226: | :--- | ---: | ---: | ---: |
+227: | 31B gate_up, 5376→43008 | 418 µs | 1654 µs | 168 µs |
+228: | 12B down, 15360→3840 | 82 µs | 422 µs | 59 µs |
+229: | E4B down, 10240→2560 | 46 µs | 192 µs | 48 µs |
+230: | 31B o_proj, 8192→5376 | 30 µs | 298 µs | 43 µs |
+231: 
+232: Whole-model, the XLA path served at roughly 0.3–0.6x bf16 (single, EOS-terminated passes); the kernel
+233: path, 16 concurrent requests of exactly 256 tokens, median of 3 passes:
+234: 
+235: | Model | HBM used | KV cache | Output tok/s | vs bf16 |
+236: | :--- | ---: | ---: | ---: | ---: |
+237: | E2B `-qat-w4a16-ct` | 7.17 GiB | 1,256,448 tokens | 4060 | 1.14x |
+238: | E4B `-qat-w4a16-ct` | 10.15 GiB | 348,160 tokens | 2157 | 1.21x |
+239: | 12B `-qat-w4a16-ct` | 9.46 GiB | 60,160 tokens | 984 | 1.41x |
+240: | 31B `-qat-w4a16-ct` | 21.67 GiB | 8,320 tokens | 500 | bf16 does not fit |
+241: 
+242: E2B saves little HBM because the QAT export leaves its PLE table at bf16 (see the PLE section below).
+243: 
+244: - **The kernel has a fixed cost of about 40 µs per call**, so the smallest projections run faster in
+245:   bf16 (the o_proj row). The gain grows with matrix size.
+
+----- lines 296-303 -----
+296: --hf_overrides '{"architectures": ["Gemma4ForCausalLM"]}'
+297: ```
+298: 
+299: | 12B checkpoint | HBM used | KV blocks | Output tok/s | Suite |
+300: | :--- | ---: | ---: | ---: | ---: |
+301: | `-it` (bf16) | 22.18 GiB | 160 | 682 | 76.0% |
+302: | `-it-qat-q4_0-unquantized` | 22.18 GiB | 160 | 682 | 75.7% (−0.2 vs bf16, −0.9 to +0.4) |
+303: | `-it-qat-w4a16-ct` (needs #3653) | 9.46 GiB | 470 | 993 | 75.1% (−0.9 vs bf16, −1.6 to −0.2) |
+
+----- lines 344-394 -----
+344: **MEASURED 2026-09-26: Google's QAT 26B serves on one v6e chip.** The `gemma4-w4a16-moe` branch (on
+345: #3653) passes 36 of 36 unit tests on the chip, including a forward test through a real
+346: `JaxRoutedExperts` against a hand-written reference at the 26B's expert shape (2816 / 704), and serves
+347: the repacked checkpoint (`jev-tpu-31b/results/2026-09-26-moe2-*`; FP8 from `2026-09-26-moe` and
+348: `../jev-tpu/results/2026-09-24-v6e1-26b-fp8`):
+349: 
+350: | 26B-A4B on one v6e chip | HBM used | KV cache | Output tok/s | Suite |
+351: | :--- | ---: | ---: | ---: | ---: |
+352: | `RedHatAI/...-FP8-dynamic` | 27.99 GiB | 27 blocks, 3,456 tokens | 668 | 76.0% |
+353: | QAT W4A16 repack (this route) | 17.43 GiB | 421 blocks, 53,888 tokens | 1,283 | 75.3% |
+354: 
+355: - **15.6x the KV cache and 1.92x the throughput** (16 concurrent requests of exactly 256 tokens,
+356:   median of 3 passes; FP8 measured the same day on a second VM, and throughput moved ~2% between VMs).
+357: - **Accuracy, paired per record against FP8:** suite −0.7 points (95% range −1.5 to +0.1; 133 records
+358:   right→wrong, 106 wrong→right); the four tasks within ±1.7 points, every range spanning zero.
+359: - **Against bf16** (`google/gemma-4-26B-A4B-it` at TP=4 on a v6e-4, 76.4%, run `2026-09-26-tp4`): this
+360:   route −1.1 points (−1.8 to −0.3); the same checkpoint on the L4 below −0.4 (−1.2 to +0.3); FP8 −0.4
+361:   (−0.9 to +0.2). The four tasks are within noise for all three. Same file on both platforms, so the
+362:   extra ~0.7 points is the TPU int4 path. bf16 at TP=4: 61.16 GiB over 4 chips, 235,008 KV tokens,
+363:   1,982 tok/s.
+364: - **TP=4 works** with #3660's second commit (run `2026-09-27-tp4fix3`, v6e-4): 21.75 GiB across four
+365:   chips, 407,168 KV tokens, 2,073 tok/s; suite identical to TP=1 (+0.0, −0.4 to +0.4) and −1.1 against
+366:   bf16 at the same TP. Two input-sharded layers of the 26B do not split into whole groups of 32 at TP=4
+367:   -- the experts' w2 (704 rows, 176 per shard) and the dense MLP's row-parallel down_proj (2112 rows,
+368:   528 per shard) -- and failed at load with `IndivisibleError` until each scale is repeated over
+369:   sub-groups of `gcd(group, rows per shard)` = 16. The row-parallel case needs the serving mesh's size
+370:   read before `cpu_mesh_context()`: inside it the current mesh is the host's, and the JAX
+371:   `QuantLinearConfig` carries no mesh (`self.mesh = None`).
+372: - Boot 796 s cold (334 s of it compilation); the saved compile cache is
+373:   `xla-cache/vllm-tpu-19a1a052-patched-moe`.
+374: - **The KV cache on these v6e runs is bf16, by the evidence available; the log line saying fp8 is
+375:   a red herring.** `Automatically using fp8_e5m2 for FP8 KV cache on TPU v6e` comes from
+376:   `TpuPlatform.fp8_dtype()` (`tpu_platform.py`), which picks *which* fp8 to use and prints on every
+377:   call, whether or not the KV cache is fp8. The allocation reads `regular_attn_shape=(num_blocks, (128,
+378:   8, 2, 256))`: the packing dimension 2 is bf16's, and fp8 makes it 4 (the v5e measurement below).
+379:   Run `2026-09-26-kvbf16` set `--kv-cache-dtype bfloat16` explicitly and got the identical layout, the
+380:   identical 53,888 tokens, the four tasks record for record and the suite +0.2 points (95% range −0.1
+381:   to +0.5). Earlier notes and a published article that describe "vLLM's default fp8 KV cache on v6e"
+382:   rest on that log line. The bytes per token do not reconcile with a naive 30-layer bf16 count against
+383:   the 11.32 GiB left, so quote vLLM's token count, not a derived KV size.
+384: 
+385: **The same checkpoint on stock vLLM CUDA, unpatched** (MEASURED 2026-09-26, one NVIDIA L4 on
+386: `g2-standard-8`, `vllm/vllm-openai@sha256:8a69ffad…`, vLLM 0.30.0; `jev-tpu-31b/results/2026-09-26-gpu-l4-*`,
+387: runner `jev-tpu-31b/gpu/run_gpu.sh`, same serve flags). It loads as it stands: vLLM picks
+388: `CompressedTensorsWNA16MoEMethod` with `MarlinExperts` for the experts and `MarlinLinearKernel` for the
+389: dense layers. Model loading takes 14.8 GiB; the KV cache holds 17,990 tokens; boot 255 s; 394 output
+390: tok/s on the same 16 × 256 load. Paired per record with the TPU W4A16 run, the four tasks agree within
+391: one example each; the suite reads **+0.7 points on GPU** (76.0% against 75.3%, 95% range +0.3 to +1.1;
+392: 16 records right→wrong, 42 wrong→right). The KV cache dtype does not explain it: the TPU run with
+393: bf16 KV set explicitly reads the same as the default (above). The int4 kernels differ (`gmm_v2` against
+394: Marlin), and the gap is unexplained.
+
+----- lines 540-546 -----
+540: `k_norm.weight` "missing" for layers 15-34. Upstream:
+541: [tpu-inference #3225](https://github.com/vllm-project/tpu-inference/issues/3225).
+542: **Still unfixed on 2026-10-02**: #3225 and its fix #3299 are both open, and `vllm/vllm-tpu:nightly` as pulled that day
+543: (tpu_inference `431287b09`) fails `-qat-q4_0-unquantized` on exactly the 20 missing `k_norm` weights and `-qat-w4a16-ct`
+544: at JIT on the unloaded `k_norm`, at TP=4 and TP=1 alike. Both serve at TP=4 on the pinned digest with `kvshare.diff`
+545: (`tpu-vllm-v5e4-2b-{q4_0,w4a16}/benchmarks/runs/2026-10-02-rig-boot-v5e4`).
+546: The rigs `tpu-vllm-v5e{1,4}-2b-{q4_0,w4a16}` now boot on that image (`2026-10-02-rig-boot-patched-*`); three serve.
+
+----- lines 594-650 -----
+594: ### int8 W8A8 and int4 vocabulary tables: measured on one v5e chip
+595: 
+596: MEASURED 2026-09-29/30 on `v5litepod-1` at `vllm/vllm-tpu@sha256:19a1a052…` with
+597: `jev-tpu-v5e1/patches/lowmem.diff`, which adds three things to the JAX path: a compressed-tensors
+598: **int8 W8A8** method (int8 weights per channel, activations quantized per token, v5e's native
+599: int8 x int8 -> int32), **int4 embedding tables** that stay packed on the chip and unpack only the gathered
+600: rows, and an **int4 `lm_head`** through gmm_v2. Suite paired record for record against bf16: E2B on the
+601: same v5e chip, E4B and 12B on one v6e chip because their bf16 builds do not fit v5e. Output tok/s from the
+602: load test at 1 / 4 / 16 requests, with int4 tables padded to 128 columns (`HARDWARE.md`, "int32 gather
+603: trap"). Each row's runs are in the rig named `tpu-vllm-v5e1-<size>-<slot 5>`; the slot-5 values are in
+604: `NAMING.md`.
+605: 
+606: | Size | Build (slot 5) | Suite (vs bf16, points, 95% range) | Output tok/s at 1 / 4 / 16 |
+607: | :--- | :--- | :--- | ---: |
+608: | E2B | bf16 (reference) | 0.683 | 144 / 560 / 2,008 |
+609: | E2B | `q4_0` (QAT, stored bf16) | 0.681 (−0.2, −1.2 to +0.7) | 144 / 560 / 2,007 |
+610: | E2B | `q4w4a16ple4` | 0.680 (−0.2, −1.2 to +0.7) | 137 / 533 / 1,910 |
+611: | E2B | `q4w4a16emb4` | 0.681 (−0.2, −1.2 to +0.7) | 150 / 583 / 2,067 |
+612: | E2B | `w8a8` (from the QAT weights) | 0.686 (+0.3, −0.7 to +1.3) | 220 / 841 / 2,872 |
+613: | E2B | `w8a8rtn` (rounded from bf16) | 0.670 (−1.2, −2.0 to −0.4) | 220 / 842 / 2,876 |
+614: | E2B | **`w8a8emb4`** | 0.677 (−0.6, −1.5 to +0.4) | 243 / 923 / 3,086 |
+615: | E2B | `fp8` | 0.670 (−1.3, −2.2 to −0.3) | 182 / 702 / 2,453 |
+616: | E2B | `fp8emb4` | 0.677 (−0.6, −1.6 to +0.4) | 203 / 781 / 2,644 |
+617: | E4B | `q4w4a16` | 0.729 (−0.2, −0.8 to +0.5) | 75 / 291 / 1,012 |
+618: | E4B | `q4w4a16emb4` | 0.730 (−0.1, −0.7 to +0.6) | 79 / 308 / 1,064 |
+619: | E4B | `w8a8` | 0.727 (−0.4, −1.1 to +0.3) | 119 / 459 / 1,590 |
+620: | E4B | `w8a8rtn` (rounded from bf16) | 0.730 (−0.1, −0.7 to +0.5) | 119 / 459 / 1,597 |
+621: | E4B | **`w8a8emb4`** | 0.728 (−0.3, −1.0 to +0.5) | 133 / 509 / 1,747 |
+622: | E4B | `fp8` | 0.733 (+0.2, −0.4 to +1.0) | 99 / 382 / 1,349 |
+623: | 12B | `q4w4a16` | 0.758 (−0.1, −0.7 to +0.5) | 33 / 127 / 388 |
+624: | 12B | `q4w4a16emb4` | 0.762 (+0.2, −0.4 to +0.8) | 35 / 127 / 407 |
+625: | 12B | `w8a8` | 0.757 (−0.2, −1.0 to +0.5) | 53 / 201 / 624 |
+626: | 12B | `w8a8rtn` (rounded from bf16) | 0.752 (−0.7, −1.4 to −0.1) | 53 / 201 / 623 |
+627: | 12B | `fp8` | 0.757 (−0.3, −0.9 to +0.4) | 43 / 165 / 518 |
+628: | 12B | **`w8a8emb4`** | 0.761 (+0.1, −0.6 to +0.8) | 57 / 219 / 675 |
+629: 
+630: - **Where the int8 values come from matters at E2B and on 12B tool calling; the int8 activations never
+631:   do.** `w8a8` and `w8a8rtn` are the same format at the same speed at every size. At E2B the build from the
+632:   QAT weights scores 1.5 suite points higher (+0.5 to +2.6, paired directly), level with bf16, where rounding
+633:   the bf16 release loses 1.2. At E4B the two are level (rounded against QAT +0.3, −0.4 to +1.1) and both
+634:   match bf16. At 12B the suite gap is not significant (−0.5, −1.3 to +0.2), but the
+635:   rounded build loses 0.7 to bf16 (−1.4 to −0.1) and **7.2 points on BFCL tool calling** (next section).
+636:   The rounded E4B and 12B builds (`glenic/*-W8A8-INT8`) store a bf16 `lm_head` byte-identical to their tied
+637:   `embed_tokens`; the JAX path loads it (1.88 GiB at 12B, enough to not fit), so they were served with it
+638:   removed by `jev-tpu-v5e1/strip_tied_head.py`, which changes no served value.
+639: - **fp8 W8A8 buys nothing at 12B either**: suite and GSM8K level with `w8a8emb4`, 17% slower than `w8a8`
+640:   at the same file size (518 against 624 tok/s at 16), because v5e converts the weights before every
+641:   multiply.
+642: - **`w8a8emb4` is the fastest build at every size**, 1.7x bf16's output at E2B for one request (243 against
+643:   144), and level with bf16 on the suite at E4B and 12B. At E2B the int4 tables cost 0.9 points against
+644:   `w8a8` with bf16 tables (−1.6 to −0.1). 12B `w8a8emb4` is 11.31 GiB of weights, the largest model
+645:   measured to serve on one v5e chip.
+646: - **fp8 W8A8 is storage-only here** (`HARDWARE.md`): slower than int8 W8A8 at E2B and E4B, and at E2B the
+647:   one build with a measurable loss (−1.3). Its int4-table variant scores −0.6 (−1.6 to +0.4).
+648: - **12B's KV pool is set by what else is on the chip.** At `--max-model-len 8192`: 9,728 tokens beside
+649:   `w8a8emb4` at `--gpu-memory-utilization 0.92` (bound by its 11.31 GiB of weights), 13,824 beside
+650:   `q4w4a16emb4` at 0.72 (bound by a 3.92 GB compile allocation; at 0.76 it failed with 3.73 GB free).

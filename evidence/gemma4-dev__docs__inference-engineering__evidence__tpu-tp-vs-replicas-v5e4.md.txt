@@ -1,0 +1,46 @@
+Excerpt of /home/xbill/gemma4-dev/docs/inference-engineering/evidence/tpu-tp-vs-replicas-v5e4.md lines 1-26, 68-82, copied 2026-10-25
+
+----- lines 1-26 -----
+1: # 2026-10-02-tp-vs-replicas-v5e4
+2: 
+3: Which way of using the four chips of a v5e-4 serves `xbill9/gemma-4-E2B-it-qat-w8a8-int8` fastest. Every layout ran on
+4: one VM, one boot: flex-start `v5litepod-4` in `us-west4-a`, created through this rig's own `create_tpu_queued_resource`,
+5: on the patched image the boot script builds (`vllm-tpu-w8a8:patched`). Each later container reuses the boot container's
+6: image, environment (`MIN_TOKEN_BUCKET=64`, `GMM_V2_TILE_VMEM_FRACTION=0.85`) and `vllm serve` arguments
+7: (`--max-model-len 16384 --max_num_batched_tokens 512 --gpu-memory-utilization 0.80`, the gemma4 tool and reasoning
+8: parsers), changing only what its row names.
+9: 
+10: #### Result
+11: 
+12: - 🟢 **Four one-chip engines are the fastest layout**, and `--data-parallel-size 4` delivers them behind one port: 2.52x
+13:   TP=4's output at 64 concurrent requests and 3.36x at 256, 1.77x on long prompts with a third of the time to first token.
+14: - 🟢 **The rig should default to `--data-parallel-size 4 --tensor-parallel-size 1`.** The image supports it on TPU:
+15:   tpu_inference resolves it to `TPU_MULTIPROCESS_DP=1`, starts four engine processes each pinned to one chip
+16:   (`TPU_VISIBLE_CHIPS=0..3`, `TPU_CHIPS_PER_PROCESS_BOUNDS=1,1,1`), and runs four API servers on port 8000.
+17: - ⚠️ At 1 request DP=4 gives 0.93x of one chip and TP=4 gives 1.08x; one engine handles each request, so a lone
+18:   request gets one chip's speed in any data-parallel layout.
+19: - ⚠️ Each DP engine holds 333,344 KV tokens, the one-chip pool. TP=4 holds 631,968 in one pool, which only matters
+20:   for a single request longer than 333k tokens; `--max-model-len` is 16,384.
+21: - 🟢 **TP=1, TP=2 and TP=4 give the same output within 11%.** A one-chip server here matches the v5e-1 sibling's
+22:   same-method boot (174.7 / 581.1 / 1,386.0 at 1 / 4 / 16), so TP=4 is about one chip's worth of serving spread over four.
+23: - ❌ **Splitting does not shorten the step because the attention decode kernel does not shrink.** Per chip it costs
+24:   803 ms of a 1,461 ms burst at TP=1, 839 at TP=2 and 831 at TP=4. E2B has one KV head, so every chip holds and reads
+25:   the whole KV cache. Matmul time does split (443 → 230 → 130 ms) and collectives add back 206 ms at TP=2 and 243 at
+26:   TP=4, so the two cancel.
+
+----- lines 68-82 -----
+68: #### Layouts, output tok/s by concurrent requests
+69: 
+70: | Layout | Chips per engine | Engines | KV tokens per engine | 1 | 4 | 16 | 64 | 256 | Long 16 x 2,048: output tok/s | total tok/s | TTFT median s |
+71: |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+72: | TP=4, one server (rig boot) | 4 | 1 | 631,968 | 189.0 | 643.7 | 1,464.6 | 2,167.5 | 2,426.2 | 1,044.8 | 9,600.6 | 0.579 |
+73: | TP=2, one server, chips 0-1 | 2 | 1 | 532,416 | 175.6 | 580.7 | 1,373.4 | 2,111.0 | — | 953.1 | 8,758.0 | 0.688 |
+74: | TP=1, one server, chip 0 | 1 | 1 | 333,344 | 174.7 | 580.4 | 1,386.7 | 2,148.9 | — | 1,006.7 | 9,250.7 | 0.57 |
+75: | 4 x TP=1, ports 8000-8003 | 1 | 4 | 333,344 | 174.7 | 696.4 | 2,319.2 | 5,537.0 | 8,513.4 | 2,004.2 | 18,416.3 | 0.181 |
+76: | `--data-parallel-size 4`, one port | 1 | 4 | 333,344 | 162.1 | 654.3 | 2,033.2 | 5,471.8 | 8,158.5 | 1,852.8 | 17,025.6 | 0.181 |
+77: | `--data-parallel-size 4`, second start | 1 | 4 | 333,344 | 162.2 | 584.8 | 2,102.0 | 5,270.3 | 8,115.8 | 1,852.2 | 17,019.7 | 0.182 |
+78: | `--data-parallel-size 4 --max-model-len 8192` | 1 | 4 | 333,312 | 194.3 | 773.7 | 2,872.4 | 7,788.2 | 14,188.7 | 2,433.6 | 22,362.3 | 0.168 |
+79: 
+80: At 16 requests: DP=4 / TP=4 = 1.39x; DP=4 at 8,192 / TP=4 = 1.96x.  
+81: At 64 requests: DP=4 / TP=4 = 2.52x; DP=4 at 8,192 / TP=4 = 3.59x.  
+82: At 256 requests: DP=4 / TP=4 = 3.36x; DP=4 at 8,192 / TP=4 = 5.85x.  

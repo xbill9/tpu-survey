@@ -1,0 +1,19 @@
+Excerpt of /home/xbill/gemma4-dev/gpu-vllm-g6-2b/benchmarks/runs/2026-08-30-first-serve-g6/REPORT.md lines 18-26, 118-122, copied 2026-10-25
+
+----- lines 18-26 -----
+18: 
+19: **2. Is SM 8.9 covered by the published image? — YES, but not the way the tool said.**
+20: 
+21: A real bfloat16 matmul executed. But the torch arch list is
+22: `['sm_75','sm_80','sm_86','sm_90','sm_100','sm_120']` — **`sm_89` is not in it.** Ada
+23: runs the `sm_86` cubins by same-major-version binary compatibility. `verify_gpu_arch`
+24: claimed "SM 8.9 is in the arch list", which is false as literally stated; the matmul is
+25: the real evidence. Message corrected in `server.py`.
+26: 
+
+----- lines 118-122 -----
+118: ## Startup
+119: 
+120: Image pull 105 s · weights download 37.6 s · model load 40.8 s · engine init 124.03 s
+121: (79.32 s compile) · **~334 s from bootstrap to `/health` 200**.
+122: 

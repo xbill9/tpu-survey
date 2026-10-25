@@ -1,0 +1,39 @@
+# Output of arithmetic.py (python3), run 2026-10-25. Inputs quoted from the excerpts in this directory.
+v5e 800 GiBps in GB/s: 858.9934592
+tok/s per TB/s v5e 120.0/0.859: 139.69732246798603
+tok/s per TB/s v6e 199.4/1.638: 121.73382173382174
+tok/s per TB/s L4 46.1/0.300: 153.66666666666669
+int8+emb4 / bf16 E2B v5e 243/144: 1.6875
+suite bf16 - w8a8emb4 0.683-0.677 (points x100): 0.6000000000000005
+26B W4A16 / FP8 tok/s 1283.3/668.4: 1.9199581089168163
+v6e-1 / L4 tok/s 1283.3/393.7: 3.259588519177038
+v6e-1 / L4 KV 53888/17990: 2.9954419121734297
+DP=4 / TP=4 at 16: 2033.2/1464.6: 1.3882288679502937
+DP=4 / TP=4 at 64: 5471.8/2167.5: 2.524475201845444
+DP=4 / TP=4 at 256: 8158.5/2426.2: 3.36266589728794
+12B v5e-4 / v5e-1 at 1 request 128.4/57.0: 2.2526315789473683
+compile / time-to-healthy v6e 329/510: 0.6450980392156863
+compile / time-to-healthy v5e 738/986: 0.7484787018255578
+compile / engine init v6e 329/404: 0.8143564356435643
+compile / engine init v5e 738/814: 0.9066339066339066
+compile cache restart cut (857-497)/857: 0.4200700116686114
+cold start minutes v6e 510/60: 8.5
+cold start minutes v5e 986/60: 16.433333333333334
+g2-standard-4 us-central1 4*core+16*ram+L4: 0.706832255
+v5e flex/on-demand 0.60/1.20: 0.5
+v6e flex/on-demand 1.35/2.70: 0.5
+v5e calendar/on-demand 0.84/1.20: 0.7
+v5e 3yr/on-demand 0.54/1.20: 0.45000000000000007
+v6e 2.70 x0.7 (calendar/1yr pattern): 1.89
+v6e 2.70 x0.45 (3yr pattern): 1.215
+v5p 4.20 x0.5 / x0.7 / x0.45: (2.1, 2.94, 1.8900000000000001)
+TPU7x 12.00 x0.5 / x0.7 / x0.45: (6.0, 8.399999999999999, 5.4)
+$/M v6e $2.97 c1 199 tok/s: 4.1457286432160805
+$/M v6e $2.97 c8 1180 tok/s: 0.6991525423728814
+$/M v6e $2.97 c32 1508 tok/s: 0.5470822281167109
+$/M v5e flex $0.60 c1 126.9 tok/s: 1.3133701076963489
+$/M v5e flex $0.60 c64 1877.7 tok/s: 0.08876107294384974
+tok/s per $ MI300X c1..c64 /1.99: [153, 487, 1333, 2713]
+tok/s per $ v5e spot c1..c64 /0.5779: [208, 711, 1572, 1972]
+tok/s per $ v6e c1..c64 /2.97: [67, 233, 587, 719]
+31B 4-bit weights 21.67 GiB > v5e-1 usable 14.49 GiB: True

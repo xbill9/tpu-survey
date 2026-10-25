@@ -1,0 +1,12 @@
+Excerpt of /home/xbill/gemma4-dev/tpu-vllm-v6e1-2b/devto-vllm-gemma4-e2b-v6e1.md lines 344-352, copied 2026-10-25
+
+----- lines 344-352 -----
+344: Rates from the Cloud Billing Catalog, per chip-hour:
+345: 
+346: | model | v5e (us-west4) | **v6e (us-east5)** | ratio |
+347: | :--- | ---: | ---: | ---: |
+348: | Spot | **$0.5779** | $1.4033 | 2.43× |
+349: | Flex-start (DWS) | $0.6000 | **$1.3500** | 2.25× |
+350: | On-demand | $1.2000 | $2.7000 | 2.25× |
+351: 
+352: **On v6e, spot is dearer than flex-start**, inverting the v5e ordering and the advice with it. On v5e, flex-start cost 3.8% more and bought preemption-freedom. On v6e flex-start is **both cheaper and preemption-free**, and it self-terminates via `--max-run-duration`, which the other two do not. There is no trade left to make.

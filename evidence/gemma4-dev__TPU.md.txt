@@ -1,0 +1,18 @@
+Excerpt of /home/xbill/gemma4-dev/TPU.md lines 219-233, copied 2026-10-25
+
+----- lines 219-233 -----
+219: \#\#\# The symptom: your create sits in PENDING
+220: 
+221: PENDING means either \*\*no quota\*\* or \*\*no capacity\*\* , and from the outside they are identical. I produced both separately: a flex-start create in a region with zero quota queued indefinitely, and a flex-start create in a region with 1536 chips of quota and no hardware did exactly the same. In neither case did the create report the actual problem.
+222: 
+223: It is not even consistent. In a third zone the same create came back immediately with an explicit reason: stockout rather than queueing. \*\*So you cannot infer the cause from the behaviour, and “did my create succeed” is not a quota test.\*\*
+224: 
+225: \#\#\# The routine
+226: 
+227: \*\*Step 1 — probe capacity with a spot create.\*\* Spot does not queue; it fails fast and names the reason, which makes it a free capacity check that takes seconds:
+228: 
+229: \`\`\`shell  
+230: $ gcloud compute instances create probe \--zone=us-central1-a \\  
+231:     \--machine-type=ct6e-standard-1t \--provisioning-model=SPOT ...
+232: 
+233: reason: stockout  

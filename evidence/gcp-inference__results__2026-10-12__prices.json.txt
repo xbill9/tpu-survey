@@ -1,0 +1,26 @@
+Excerpt of /home/xbill/gcp-inference/results/2026-10-12/prices.json lines 1-3, 76-93, copied 2026-10-25
+
+----- lines 1-3 -----
+1: {
+2:   "fetched": "2026-10-12T19:57:57+00:00",
+3:   "rates": {
+
+----- lines 76-93 -----
+76:     "gke_node_core": {
+77:       "sku": "G2 Instance Core running in Americas",
+78:       "region": "us-central1",
+79:       "unit": "h",
+80:       "usd": 0.024988212
+81:     },
+82:     "gke_node_ram": {
+83:       "sku": "G2 Instance Ram running in Americas",
+84:       "region": "us-central1",
+85:       "unit": "GiBy.h",
+86:       "usd": 0.002927448
+87:     },
+88:     "gke_node_l4": {
+89:       "sku": "Nvidia L4 GPU running in Americas",
+90:       "region": "us-central1",
+91:       "unit": "h",
+92:       "usd": 0.560040239
+93:     },
