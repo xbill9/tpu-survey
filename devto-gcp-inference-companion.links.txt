@@ -1,0 +1,3 @@
+devto = https://dev.to/gde/inference-on-google-cloud-precision-memory-and-capacity-on-tpu-from-v5e-to-ironwood-5dlf
+medium = PENDING
+substack = PENDING

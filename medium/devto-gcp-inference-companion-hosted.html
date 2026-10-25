@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc 3.11" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Inference on Google Cloud: Precision, Memory and Capacity on TPU, from v5e to Ironwood</title>
+  <meta name="description" content="The companion to the talk: what the number format, memory bandwidth, slice shape and capacity rules do to Gemma 4 on Cloud TPU v5e and v6e, against the L4, Blackwell, MI300X and Inferentia, with the cost of each." />
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      white-space: pre-wrap;
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: 1.5em;}
+    div.column{flex: auto;}
+    @media screen {
+    div.columns{gap: min(4vw, 1.5em);}
+    div.column{overflow-x: auto;}
+    }
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+  </style>
+  <style>
+    body{font-family:-apple-system,'Segoe UI',Roboto,'Liberation Sans',Arial,sans-serif;
+         font-size:18px;line-height:1.58;max-width:42em;color:#242424;}
+    h1,h2,h3,h4{font-weight:700;line-height:1.25;margin-top:1.8em;}
+    h4{font-size:1.25em;}
+    img{max-width:100%;height:auto;display:block;margin:1.6em 0;}
+    pre{background:#f7f7f7;border:1px solid #e6e6e6;border-radius:4px;
+        padding:12px 14px;overflow-x:auto;font-size:14px;line-height:1.45;}
+    code{font-family:'Liberation Mono',Menlo,Consolas,monospace;}
+    :not(pre)>code{background:#f2f2f2;padding:1px 5px;border-radius:3px;font-size:.9em;}
+    blockquote{border-left:3px solid #ddd;margin-left:0;padding-left:1em;color:#555;}
+    hr{border:0;border-top:1px solid #e6e6e6;margin:2.4em 0;}
+  </style>
+</head>
+<body>
+<p>This article is the written companion to the talk "Inference on
+Google Cloud". It covers serving Gemma 4 on Cloud TPU v5e and v6e
+through vLLM, measured on the gemma4-dev Cloud TPU test setups between
+July and October 2026, and compares them with the NVIDIA L4 on Google
+Cloud, Blackwell list prices, an AMD MI300X and AWS Inferentia. Four
+ideas explain most of the results: the number format the chip computes
+natively, the memory bandwidth that feeds it, the slice shape, and the
+rules that decide whether a TPU is there to rent at all.</p>
+<figure><img src="https://raw.githubusercontent.com/xbill9/tpu-survey/main/medium/img/devto-cover.eef6abe3.jpg" alt="Inference on Google Cloud: Precision, Memory and Capacity on TPU, from v5e to Ironwood" /></figure>
+<p><a
+href="https://github.com/xbill9/gemma4-dev">https://github.com/xbill9/gemma4-dev</a></p>
+<p>The hands-on steps run from a second repository, which starts one TPU
+and serves Gemma 4 on it with a single command:</p>
+<p><a
+href="https://github.com/xbill9/gcp-inference">https://github.com/xbill9/gcp-inference</a></p>
+<p>The slides: <a
+href="https://docs.google.com/presentation/d/1hT8UXOEBueZfoFdIH0ZyhYhQ3WZJ_0xbCsvNDDs8H4A/edit">https://docs.google.com/presentation/d/1hT8UXOEBueZfoFdIH0ZyhYhQ3WZJ_0xbCsvNDDs8H4A/edit</a></p>
+<hr />
+<h4 id="what-is-the-problem">What Is the Problem?</h4>
+<p>This article compares four TPU generations, the L4 and Blackwell GPUs
+beside them, and every way Google Cloud prices a TPU chip-hour. The same
+Gemma 4 E2B serves at 144 tokens a second on a v5e in bf16 and at 243 in
+int8 with 4-bit embedding tables, on the same chip. A v6e-1 serves 3.3
+times the L4's tokens on the same 26B checkpoint. And a zone that
+reports quota for 1,536 chips can still return a stockout.</p>
+<hr />
+<h4 id="which-generations">Which Generations?</h4>
+<p><img src="https://raw.githubusercontent.com/xbill9/tpu-survey/main/medium/img/devto-gcp-inference-companion-table-1.png"
+alt="Table: Chip, HBM, Peak bf16, Native low precision, Max pod, On-demand" /></p>
+<p>Google's first TPU, in its datacenters since 2015, was an 8-bit
+inference chip with a 92 TOPS peak, and Google announced Ironwood on
+2025-04-09 as "the first Google TPU for the age of inference". The
+gemma4-dev test setups measured v5e and v6e. v5p and TPU7x rows come
+from Google's documentation only.</p>
+<p>vLLM reaches the TPU through tpu-inference, a JAX backend. XLA
+compiles one program per input shape, which makes the compile the
+largest part of a cold start.</p>
+<hr />
+<h4 id="at-this-point-you-should-have">At This Point You Should
+Have…</h4>
+<ul>
+<li>The <code>gcloud</code> CLI with its <code>alpha</code> and
+<code>beta</code> components, signed in with
+<code>gcloud auth login</code> and
+<code>gcloud auth application-default login</code></li>
+<li>A project with Cloud TPU quota for one v5e chip in us-west4-a</li>
+<li><code>python3</code> with
+<code>pip install 'google-adk[extensions]' google-genai mcp</code></li>
+<li>A clone of <code>xbill9/gcp-inference</code></li>
+</ul>
+<hr />
+<h4 id="step-1--one-tpu-one-command">Step 1 — One TPU, One Command</h4>
+<p><code>demo.sh</code> asks for a TPU v5e-1 as a flex-start request in
+us-west4-a, waits for the node, opens an SSH tunnel to vLLM on the TPU's
+port 8000, waits for the model to load and compile, then runs a Google
+ADK agent against it. Flex-start stops the node by itself after 4 hours.
+On a TPU that is already up, <code>./demo.sh again</code> skips the
+first two steps:</p>
+<pre class="bash"><code>./demo.sh again
+== [0m01s] 3/5  Connecting to it over SSH (the demo reaches vLLM on the TPU&#39;s port 8000 through a tunnel)
+   [0m05s] SSH works
+   [0m11s] tunnel open: localhost:8005 -&gt; TPU port 8000
+== [0m11s] 4/5  Starting Gemma on vLLM (first start downloads and compiles: several minutes)
+   [0m30s] vLLM is answering
+  20:21:25Z  PASS  tpu        chat 0.198s; tool run filters=[&#39;id &gt;= 10&#39;] quoted=8 3.71s
+READY
+== [0m37s] 5/5  The demo: Gemma on the TPU counts ids with the count_ids tool from the MCP server
+Question: How many of the ids are 10 or more? Answer with the number.
+Ids: [0, 2, 3, 20, 21, 22, 23, 10, 11, 12, 13]
+True answer: 8  tools: mcp
+  tpu        run 1/3  ok   quoted=8  filters=[&#39;id &gt;= 10&#39;]  3.87s
+  tpu        run 2/3  ok   quoted=8  filters=[&#39;id &gt;= 10&#39;]  0.51s
+  tpu        run 3/3  ok   quoted=8  filters=[&#39;id &gt;= 10&#39;]  0.49s
+backend     runs  correct  right-filter  errors  median s  filters sent
+tpu            3    3/3             3/3       0      0.51  id &gt;= 10</code></pre>
+<p>The agent is an ADK <code>LlmAgent</code> whose model is
+<code>LiteLlm</code> pointed at vLLM's OpenAI-compatible API, and an ADK
+<code>McpToolset</code> starts <code>mcp_server.py</code> over stdio and
+offers it one tool. The model never counts. It calls
+<code>count_ids</code> on that MCP server, which returns the exact
+count, and each run is graded on the filter it sent as well as the
+number it quoted. Gemma 4 E2B on the v5e sent <code>id &gt;= 10</code>
+in all three runs.</p>
+<p>The node serves <code>google/gemma-4-E2B-it</code> in bf16 with
+<code>vllm/vllm-tpu:v0.30.0</code>, one chip, no sharding.</p>
+<hr />
+<h4 id="step-2--what-the-16-gb-chip-holds">Step 2 — What the 16 GB Chip
+Holds</h4>
+<p>vLLM logs the chip's memory as it starts. In order:</p>
+<pre class="text"><code>Init worker | ... | hbm=[(0.0, 15.75)]GiB
+Init model | hbm=[(8.97, 15.75)]GiB
+Memory statistics | total_hbm_limit_gb=15.75GiB | total_hbm_limit_cap_gb=14.49GiB | total_hbm_used_gb=8.97GiB | total_hbm_avail_gb=5.52GiB
+TPU KV cache size: 321,280 tokens, Maximum concurrency for 8,192 tokens per request: 39.22x
+Init kv-cache | num_total_layers=15 | num_blocks=[1255, ...] | regular_attn_shape=(num_blocks, (256, 1, 2, 256)) | regular_attn_dtype=bfloat16 | hbm=[(14.51, 15.75)]Gb</code></pre>
+<p><img src="https://raw.githubusercontent.com/xbill9/tpu-survey/main/medium/img/devto-gcp-inference-companion-table-2.png"
+alt="Table: HBM on one v5e chip, GiB" /></p>
+<p>Each of the 15 cached layers holds 1,255 blocks of 256 tokens, one KV
+head of dimension 256, in bf16. That is 1,024 bytes per token per layer,
+15,360 bytes per token across all 15, and 321,280 token slots in all.
+The model's config lists 35 layers with
+<code>num_kv_shared_layers: 20</code>: 20 layers reuse another layer's
+keys and values, so the cache holds 15.</p>
+<hr />
+<h4 id="step-3--the-full-131072-token-context">Step 3 — The Full
+131,072-Token Context</h4>
+<p>Gemma 4 E2B's config allows 131,072 positions. vLLM sizes its KV
+cache from the memory left after the weights, so raising
+<code>--max-model-len</code> from 8,192 to 131,072 changes the
+concurrency and leaves the cache the same size. To change a flag on a
+running TPU, replace the container:</p>
+<pre class="bash"><code>gcloud compute tpus tpu-vm ssh gcp-inference-tpu-node --project &lt;tpu-project&gt; --zone us-west4-a --command \
+  &#39;sudo docker rm -f vllm &amp;&amp; sudo docker run -d --name vllm --restart unless-stopped --privileged --net=host \
+   -v /dev/shm:/dev/shm --shm-size 10gb -e HF_HOME=/dev/shm vllm/vllm-tpu:v0.30.0 \
+   vllm serve google/gemma-4-E2B-it --served-model-name gemma --max-model-len 131072 --port 8000 \
+   --max-num-batched-tokens 4096 --enable-auto-tool-choice --tool-call-parser gemma4&#39;
+Memory statistics | total_hbm_limit_gb=15.75GiB | total_hbm_limit_cap_gb=14.49GiB | total_hbm_used_gb=8.97GiB | total_hbm_avail_gb=5.52GiB
+TPU KV cache size: 321,280 tokens, Maximum concurrency for 131,072 tokens per request: 2.45x
+init engine (profile, create kv cache, warmup model) took 503.54 s (compilation: 413.41 s)
+Application startup complete.</code></pre>
+<p><img src="https://raw.githubusercontent.com/xbill9/tpu-survey/main/medium/img/devto-gcp-inference-companion-table-3.png"
+alt="Table: --max-model-len, 8,192, 131,072" /></p>
+<p>One full-length request needs 1.875 GiB of KV cache.
+<code>scripts/longctx.py</code> in <code>tpu-survey</code> buries a
+passphrase at a chosen depth in up to 124,949 tokens of filler, starts
+each prompt with a unique line so vLLM's prefix cache cannot reuse an
+earlier run, and asks for the passphrase:</p>
+<pre class="text"><code>$ python3 scripts/longctx.py $TPU_URL 8000 0.5
+{&quot;prompt_tokens&quot;: 7949, &quot;completion_tokens&quot;: 10, &quot;depth&quot;: 0.5, &quot;seconds&quot;: 0.61, &quot;prompt_tokens_per_second&quot;: 13110.4, &quot;answer&quot;: &quot;violet-harbor-7341&quot;, &quot;found&quot;: true}
+$ python3 scripts/longctx.py $TPU_URL 120000 0.1
+{&quot;prompt_tokens&quot;: 124949, &quot;completion_tokens&quot;: 10, &quot;depth&quot;: 0.1, &quot;seconds&quot;: 9.53, &quot;prompt_tokens_per_second&quot;: 13116.9, &quot;answer&quot;: &quot;violet-harbor-7341&quot;, &quot;found&quot;: true}
+$ python3 scripts/longctx.py $TPU_URL 120000 0.5
+{&quot;prompt_tokens&quot;: 124949, &quot;completion_tokens&quot;: 10, &quot;depth&quot;: 0.5, &quot;seconds&quot;: 9.54, &quot;prompt_tokens_per_second&quot;: 13102.3, &quot;answer&quot;: &quot;violet-harbor-7341&quot;, &quot;found&quot;: true}
+$ python3 scripts/longctx.py $TPU_URL 120000 0.9
+{&quot;prompt_tokens&quot;: 124949, &quot;completion_tokens&quot;: 10, &quot;depth&quot;: 0.9, &quot;seconds&quot;: 9.41, &quot;prompt_tokens_per_second&quot;: 13274.6, &quot;answer&quot;: &quot;violet-harbor-7341&quot;, &quot;found&quot;: true}
+$ python3 scripts/longctx.py $TPU_URL 140000 0.5
+HTTP 400: {&quot;error&quot;:{&quot;message&quot;:&quot;This model&#39;s maximum context length is 131072 tokens. However, you requested 16 output tokens and your prompt contains at least 131057 input tokens, for a total of at least 131073 tokens. ...&quot;}}</code></pre>
+<p>The passphrase comes back at 10%, 50% and 90% depth of a
+124,949-token prompt, in 9.4 to 9.5 seconds each, about 13,100 prompt
+tokens a second as timed from the client. vLLM's own log reads 12,495
+tokens a second, a 0.0% prefix cache hit rate, and 38 to 39% of the KV
+cache in use while the request runs. A prompt past the limit is refused
+before it reaches the chip.</p>
+<hr />
+<h4 id="mag_right-tip-raise-the-context-on-the-chip-you-have">🔎 Tip:
+Raise the Context on the Chip You Have</h4>
+<p>Flex-start capacity is granted per request. Replacing the container
+keeps the node, and its 4-hour clock, and costs one engine start, 503.54
+s on this v5e. Deleting the node to relaunch it means a new flex-start
+request, and a new wait for capacity.</p>
+<hr />
+<h4 id="step-4--precision-what-the-chip-computes">Step 4 — Precision:
+What the Chip Computes</h4>
+<p>A smaller format saves memory and bandwidth on every chip. It saves
+compute only where the matrix unit multiplies that format natively.</p>
+<p><img src="https://raw.githubusercontent.com/xbill9/tpu-survey/main/medium/img/devto-gcp-inference-companion-table-4.png"
+alt="Table: Format, v5e, v6e, v5p, TPU7x" /></p>
+<p>"Storage" means the weights widen to bf16 before every matrix
+multiply. On v5e that ordering shows up directly in E2B throughput at
+one stream:</p>
+<p><img src="https://raw.githubusercontent.com/xbill9/tpu-survey/main/medium/img/devto-gcp-inference-companion-table-5.png"
+alt="Table: E2B format on v5e-1, tok/s" /></p>
+<p>Accuracy holds: 0.683 for bf16 against 0.677 for int8 with 4-bit
+embeddings, on a 3,880-record suite. At 12B, fp8 serves 518 tok/s at 16
+streams against 624 for int8 at the same file size.</p>
+<p>On v6e the 4-bit path pays off through a fused kernel. Gemma 4
+26B-A4B in 4-bit QAT W4A16 serves 1,283 tok/s at 16 streams against 668
+for fp8, in 17.43 GiB of weights against 27.99 GiB, and holds 53,888
+KV-cache tokens against 3,456. Accuracy is 75.3% against 76.0%. W4A16
+needs tpu-inference PRs #3299, #3653 and #3660 on top of the stock
+image.</p>
+<hr />
+<h4 id="step-5--memory-and-bandwidth">Step 5 — Memory and Bandwidth</h4>
+<p>Each generated token reads every weight once, so bandwidth sets the
+ceiling for one request.</p>
+<p><img src="https://raw.githubusercontent.com/xbill9/tpu-survey/main/medium/img/devto-gcp-inference-companion-table-6.png"
+alt="Table: Chip, Memory, Bandwidth, E2B bf16 tok/s, 1 stream, tok/s per TB/s" /></p>
+<p>The three measured chips land between 122 and 154 tokens a second per
+TB/s. Google quotes v5e bandwidth as 800 GiBps, which is 859 GB/s. The
+L4 figure was measured on an AWS g6.2xlarge, the same chip as Google
+Cloud's g2.</p>
+<hr />
+<h4 id="step-6--topologies-and-slices">Step 6 — Topologies and
+Slices</h4>
+<p>Weight size picks the slice. Every Gemma 4 size serves on one
+host:</p>
+<p><img src="https://raw.githubusercontent.com/xbill9/tpu-survey/main/medium/img/devto-gcp-inference-companion-table-7.png"
+alt="Table: Model, v5e-1, v6e-1, v6e-4, TP=4" /></p>
+<p>Small models scale out. On a v5e-4, four one-chip E2B engines serve
+1.39x the output of one TP=4 engine at 16 streams, 2.52x at 64 and 3.36x
+at 256. E2B has one KV head, so tensor parallelism keeps four copies of
+the KV cache. 12B gains from TP=4: 2.25x the v5e-1 output at one stream,
+and 122,624 KV tokens against 9,728.</p>
+<hr />
+<h4 id="mag_right-tip-quota-lets-you-ask-availability-decides">🔎 Tip:
+Quota Lets You Ask, Availability Decides</h4>
+<p>Quota is permission to request a TPU. Availability decides whether
+the request gets hardware, through three checks: hardware in the zone,
+the provisioning model offered there, and capacity at that moment. 37
+zones report v6e quota; 18 offer v6e-1 hardware. Three of five zones
+holding 1,536 chips of quota returned stockout. us-central1-b has
+hardware, quota and a flex-start price, and rejects flex-start. Check
+capacity with a spot request: it fails fast with "reason: stockout",
+where a flex-start request with no quota queues as PENDING exactly like
+a stockout.</p>
+<p>Ask for fewer chips. In europe-west4-a a v6e-8 flex-start request
+expired after 26 minutes, and a v6e-4 was granted at once less than an
+hour later.</p>
+<hr />
+<h4 id="step-7--against-other-accelerators">Step 7 — Against Other
+Accelerators</h4>
+<p>On the same 26B 4-bit checkpoint, with the same flags and client:</p>
+<p><img src="https://raw.githubusercontent.com/xbill9/tpu-survey/main/medium/img/devto-gcp-inference-companion-table-8.png"
+alt="Table: NVIDIA L4, TPU v6e-1" /></p>
+<p>Cloud Run serves the L4 as a managed service: one L4 per instance,
+weights mounted from Cloud Storage at /mnt/models, a startup check that
+waits 180 s before its first check, and a default that scales between
+zero and one instance, so an idle service means a cold GPU start.</p>
+<p>Blackwell on Google Cloud lists above v6e per accelerator-hour: an
+RTX PRO 6000 on g4-standard-48 at $4.50 on-demand and $2.25 flex-start,
+and a B200 at $8.06 per GPU flex-start ($64.44 for the 8-GPU
+a4-highgpu-8g, divided by 8). Both are list prices only, with no
+measurements in this article.</p>
+<p>Per dollar, on E2B bf16 with <code>vllm bench serve</code> at 1,024
+prompt and 128 output tokens, v5e at its $0.58 spot price leads to 16
+streams and the MI300X at $1.99 leads at 64. The v6e-1 is priced at the
+europe-west4 on-demand rate of $2.97:</p>
+<p><img src="https://raw.githubusercontent.com/xbill9/tpu-survey/main/medium/img/devto-gcp-inference-companion-table-9.png"
+alt="Table: tok/s per $/hr, MI300X ($1.99), v5e-1 spot ($0.58), v6e-1 europe-west4 ($2.97)" /></p>
+<p>Each software stack fails in its own way:</p>
+<p><img src="https://raw.githubusercontent.com/xbill9/tpu-survey/main/medium/img/devto-gcp-inference-companion-table-10.png"
+alt="Table: TPU, vLLM + JAX, CUDA, L4, ROCm, MI300X, Neuron, inf2 / trn1" /></p>
+<hr />
+<h4 id="mag_right-tip-cache-the-compile">🔎 Tip: Cache the Compile</h4>
+<p>XLA compile is 81 to 91% of vLLM's engine start for E2B: 329 of 404
+seconds on v6e-1 and 738 of 814 on v5e-1, inside 510 and 986 seconds
+from container start to healthy. On today's v5e-1 with
+<code>vllm/vllm-tpu:v0.30.0</code> the engine start was 503.54 seconds,
+413.41 of them compile. A mounted compile cache cut a v5e restart from
+857 to 497 seconds, 42%. 31B weights load in 5.6 minutes from in-region
+Cloud Storage against 60 to 90 from Hugging Face.</p>
+<p>Serving flags that work on GPUs fail late on TPU, after the compile.
+<code>--gpu-memory-utilization 0.95</code> failed on v5e after a
+691-second compile, twice; 0.92 serves.
+<code>--kv-cache-dtype fp8</code> logs fp8 on v6e and allocates bf16.
+The <code>vllm/vllm-tpu:nightly</code> tag broke two 4-bit builds on
+2026-10-02, so pin an image digest.</p>
+<hr />
+<h4 id="step-8--what-each-chip-costs">Step 8 — What Each Chip Costs</h4>
+<p><img src="https://raw.githubusercontent.com/xbill9/tpu-survey/main/medium/img/devto-gcp-inference-companion-table-11.png"
+alt="Table: $ per chip-hour, On-demand, Flex-start, Calendar, 1-yr CUD, 3-yr CUD, Spot read" /></p>
+<p>Flex-start halves on-demand on every generation and can undercut
+spot: v6e in us-east5 lists $1.35 flex-start against a $1.40 spot price.
+Flex-start runs 10 minutes to 7 days and bills until deleted.</p>
+<p>Utilization sets the price per token. A v6e-1 at the europe-west4
+on-demand rate of $2.97 an hour serves E2B at $4.14 per million output
+tokens with one stream, $0.70 with eight and $0.55 with 32, at
+1,024-token prompts. A v5e at the $0.60 flex-start rate goes from $1.31
+per million at one stream to $0.09 at 64, at 128-token prompts.</p>
+<hr />
+<h4 id="compare-and-contrast">Compare and Contrast</h4>
+<p><img src="https://raw.githubusercontent.com/xbill9/tpu-survey/main/medium/img/devto-gcp-inference-companion-table-12.png"
+alt="Table: Option, Precision served, Bandwidth, Measured result, List $/hr, Software" /></p>
+<hr />
+<h4 id="so-which-one">So, Which One?</h4>
+<p>For E2B or E4B at the lowest cost, run v5e-1 in int8 with one engine
+per chip, on spot or flex-start. For 12B to 31B on one chip, run v6e-1
+in 4-bit QAT. For bf16 26B or 31B with long context, run v6e-4 with
+TP=4. For stock software and the fastest boot, run the L4, on Compute
+Engine or on Cloud Run. TPU7x brings fp8 math and 192 GiB per chip,
+behind an allowlist. Whichever you pick: check capacity with a spot
+request, ask for the smallest slice that fits, pin the image digest and
+mount the compile cache.</p>
+<hr />
+<h4 id="summary">Summary</h4>
+<p>The goal of this article was to serve Gemma 4 on a Cloud TPU in one
+command, then explain the results across TPU generations through native
+precision, memory bandwidth, slice shape and capacity. The key to the
+solution was measuring each claim on real hardware, with every ratio and
+price computed in code. The results were:</p>
+<ul>
+<li>🟢 <strong>One v5e chip holds Gemma 4 E2B's full 131,072-token
+context</strong>: a 321,280-token KV cache beside 8.97 GiB of bf16
+weights, and a passphrase found at 10%, 50% and 90% depth of a
+124,949-token prompt in 9.4 to 9.5 s.</li>
+<li>🟢 <strong>The agent sends the right filter</strong>: 3 of 3 runs on
+the v5e called <code>count_ids</code> with <code>id &gt;= 10</code> and
+quoted 8.</li>
+<li>🟢 <strong>int8 is the fast format on v5e</strong>: with 4-bit
+embedding tables it serves E2B at 1.7x bf16, with accuracy within a
+point.</li>
+<li>🟢 <strong>v6e-1 serves 3.3x the L4's tokens</strong> on the same
+26B 4-bit checkpoint, with 3x the KV cache.</li>
+<li>🟢 <strong>Flex-start halves on-demand</strong> on every generation,
+and can undercut spot.</li>
+<li>⚠️ <strong>Cold start takes 8.5 to 16.4 minutes</strong>, most of it
+XLA compile; cache it.</li>
+<li>🟢 <strong>One-stream decode follows bandwidth</strong>: 122 to 154
+tok/s per TB/s on v5e, v6e and the L4.</li>
+<li>❌ <strong>Quota is permission to request; availability decides the
+grant</strong>: 37 zones report v6e quota, 18 have v6e-1 hardware, and
+zones holding full quota still return stockout.</li>
+</ul>
+<p>Scope: the hands-on steps ran on one flex-start v5e-1 in us-west4-a
+on 2026-10-25, <code>google/gemma-4-E2B-it</code> in bf16 on
+<code>vllm/vllm-tpu:v0.30.0</code>, three demo runs and one long-context
+request per depth. The rest covers Gemma 4 E2B to 31B on Cloud TPU v5e
+and v6e, measured on the gemma4-dev test setups between July and October
+2026 with vLLM and tpu-inference; L4 on Google Cloud g2 and AWS g6;
+MI300X on DigitalOcean; Inferentia2 and Trainium on AWS. The
+cross-vendor tokens-per-dollar table mixes vLLM builds, hosts and repeat
+counts, so it shows direction. v5p, TPU7x and Blackwell figures are
+Google's published specifications and list prices, read on 2026-10-12
+and re-read on 2026-10-25 with the same values; spot prices come from
+the Cloud Billing Catalog on recorded dates.</p>
+<p>The strategy for serving Gemma 4 on Google Cloud from v5e to Ironwood
+was validated with an incremental step by step approach.</p>
+<hr />
+<h4 id="references">References</h4>
+<ul>
+<li><a href="https://github.com/xbill9/gemma4-dev">gemma4-dev |
+GitHub</a></li>
+<li><a href="https://github.com/xbill9/gcp-inference">gcp-inference |
+GitHub</a></li>
+<li><a href="https://github.com/xbill9/tpu-survey">tpu-survey,
+long-context test and evidence | GitHub</a></li>
+<li><a href="https://huggingface.co/google/gemma-4-E2B-it">Gemma 4
+E2B-it | Hugging Face</a></li>
+<li><a
+href="https://docs.google.com/presentation/d/1hT8UXOEBueZfoFdIH0ZyhYhQ3WZJ_0xbCsvNDDs8H4A/edit">Inference
+on Google Cloud slides | Google Slides</a></li>
+<li><a
+href="https://docs.google.com/presentation/d/1Ax8KGF8T0EYffshY7WfUM61QcHmLk0q72EE7G_hIwgM/edit">Inference
+on AWS slides | Google Slides</a></li>
+<li><a
+href="https://github.com/vllm-project/tpu-inference">tpu-inference |
+GitHub</a></li>
+<li><a href="https://docs.cloud.google.com/tpu/docs">Cloud TPU
+documentation | Google Cloud</a></li>
+<li><a href="https://docs.cloud.google.com/tpu/docs/tpu7x">TPU7x
+(Ironwood) | Google Cloud</a></li>
+<li><a href="https://cloud.google.com/tpu/pricing">Cloud TPU pricing |
+Google Cloud</a></li>
+<li><a
+href="https://cloud.google.com/products/compute/pricing/accelerator-optimized">Accelerator-optimized
+machine pricing | Google Cloud</a></li>
+<li><a href="https://arxiv.org/abs/1704.04760">In-Datacenter Performance
+Analysis of a Tensor Processing Unit | arXiv</a></li>
+</ul>
+</body>
+</html>
