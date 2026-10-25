@@ -6,7 +6,7 @@ tags: googlecloud, tpu, machinelearning, gemma
 cover_image: https://raw.githubusercontent.com/xbill9/tpu-survey/main/devto-cover.eef6abe3.jpg
 ---
 
-This article is the written companion to the talk "Inference on Google Cloud". It covers serving Gemma 4 on Cloud TPU v5e and v6e through vLLM, measured in the gemma4-dev Cloud TPU rigs between July and October 2026, and compares them with the NVIDIA L4 on Google Cloud, Blackwell list prices, an AMD MI300X and AWS Inferentia. Four ideas explain most of the results: the number format the chip computes natively, the memory bandwidth that feeds it, the slice shape, and the rules that decide whether a TPU is there to rent at all.
+This article is the written companion to the talk "Inference on Google Cloud". It covers serving Gemma 4 on Cloud TPU v5e and v6e through vLLM, measured on the gemma4-dev Cloud TPU test setups between July and October 2026, and compares them with the NVIDIA L4 on Google Cloud, Blackwell list prices, an AMD MI300X and AWS Inferentia. Four ideas explain most of the results: the number format the chip computes natively, the memory bandwidth that feeds it, the slice shape, and the rules that decide whether a TPU is there to rent at all.
 
 https://github.com/xbill9/gemma4-dev
 
@@ -33,7 +33,7 @@ This article compares four TPU generations, the L4 and Blackwell GPUs beside the
 | v5p | 95 GiB | 459 TFLOPs | int8; fp8 at bf16 rate | 8,960 | $4.20/hr |
 | TPU7x Ironwood | 192 GiB | 2,307 TFLOPs | fp8, 4,614 TFLOPs | 9,216 | $12.00/hr |
 
-Google's first TPU, in its datacenters since 2015, was an 8-bit inference chip with a 92 TOPS peak, and Google announced Ironwood on 2025-04-09 as "the first Google TPU for the age of inference". The rigs measured v5e and v6e. v5p and TPU7x rows come from Google's documentation only.
+Google's first TPU, in its datacenters since 2015, was an 8-bit inference chip with a 92 TOPS peak, and Google announced Ironwood on 2025-04-09 as "the first Google TPU for the age of inference". The gemma4-dev test setups measured v5e and v6e. v5p and TPU7x rows come from Google's documentation only.
 
 vLLM reaches the TPU through tpu-inference, a JAX backend. XLA compiles one program per input shape, which makes the compile the largest part of a cold start.
 
@@ -180,7 +180,7 @@ A smaller format saves memory and bandwidth on every chip. It saves compute only
 
 Accuracy holds: 0.683 for bf16 against 0.677 for int8 with 4-bit embeddings, on a 3,880-record suite. At 12B, fp8 serves 518 tok/s at 16 streams against 624 for int8 at the same file size.
 
-On v6e the 4-bit path pays off through a fused kernel. Gemma 4 26B-A4B in 4-bit QAT W4A16 serves 1,283 tok/s at 16 streams against 668 for fp8, in 17.43 GiB of weights against 27.99 GiB, and holds 53,888 KV-cache tokens against 3,456. Accuracy is 75.3% against 76.0%. The stock image refuses W4A16; it took tpu-inference PRs #3299, #3653 and #3660.
+On v6e the 4-bit path pays off through a fused kernel. Gemma 4 26B-A4B in 4-bit QAT W4A16 serves 1,283 tok/s at 16 streams against 668 for fp8, in 17.43 GiB of weights against 27.99 GiB, and holds 53,888 KV-cache tokens against 3,456. Accuracy is 75.3% against 76.0%. W4A16 needs tpu-inference PRs #3299, #3653 and #3660 on top of the stock image.
 
 ---
 
@@ -239,11 +239,11 @@ On the same 26B 4-bit checkpoint, with the same flags and client:
 
 Cloud Run serves the L4 as a managed service: one L4 per instance, weights mounted from Cloud Storage at /mnt/models, a startup check that waits 180 s before its first check, and a default that scales between zero and one instance, so an idle service means a cold GPU start.
 
-Blackwell on Google Cloud lists above v6e per accelerator-hour: an RTX PRO 6000 on g4-standard-48 at $4.50 on-demand and $2.25 flex-start, and a B200 at $8.06 per GPU flex-start ($64.44 for the 8-GPU a4-highgpu-8g, divided by 8). No rig has measured either.
+Blackwell on Google Cloud lists above v6e per accelerator-hour: an RTX PRO 6000 on g4-standard-48 at $4.50 on-demand and $2.25 flex-start, and a B200 at $8.06 per GPU flex-start ($64.44 for the 8-GPU a4-highgpu-8g, divided by 8). Both are list prices only, with no measurements in this article.
 
-Per dollar, on E2B bf16 with `vllm bench serve`, v5e at a $0.58 spot read leads to 16 streams and the MI300X at $1.99 leads at 64:
+Per dollar, on E2B bf16 with `vllm bench serve` at 1,024 prompt and 128 output tokens, v5e at its $0.58 spot price leads to 16 streams and the MI300X at $1.99 leads at 64. The v6e-1 is priced at the europe-west4 on-demand rate of $2.97:
 
-| tok/s per $/hr | MI300X ($1.99) | v5e-1 spot ($0.58) | v6e-1 ($2.97) |
+| tok/s per $/hr | MI300X ($1.99) | v5e-1 spot ($0.58) | v6e-1 europe-west4 ($2.97) |
 |---|---:|---:|---:|
 | 1 stream | 153 | 208 | 67 |
 | 4 streams | 487 | 711 | 233 |
@@ -277,9 +277,9 @@ Serving flags that work on GPUs fail late on TPU, after the compile. `--gpu-memo
 | v5p | $4.20 | $2.10 | $2.94 | $2.94 | $1.89 | — |
 | TPU7x Ironwood | $12.00 | $6.00 | $8.40 | $8.40 | $5.40 | — |
 
-Flex-start halves on-demand on every generation and can undercut spot: v6e in us-east5 lists $1.35 flex-start against a $1.40 spot read. Flex-start runs 10 minutes to 7 days and bills until deleted.
+Flex-start halves on-demand on every generation and can undercut spot: v6e in us-east5 lists $1.35 flex-start against a $1.40 spot price. Flex-start runs 10 minutes to 7 days and bills until deleted.
 
-Utilization sets the price per token. A v6e-1 at $2.97 an hour serves E2B at $4.14 per million output tokens with one stream, $0.70 with eight and $0.55 with 32. A v5e at flex-start goes from $1.31 at one stream to $0.09 at 64.
+Utilization sets the price per token. A v6e-1 at the europe-west4 on-demand rate of $2.97 an hour serves E2B at $4.14 per million output tokens with one stream, $0.70 with eight and $0.55 with 32, at 1,024-token prompts. A v5e at the $0.60 flex-start rate goes from $1.31 per million at one stream to $0.09 at 64, at 128-token prompts.
 
 ---
 
@@ -303,7 +303,7 @@ For E2B or E4B at the lowest cost, run v5e-1 in int8 with one engine per chip, o
 
 #### Summary
 
-The goal of this article was to serve Gemma 4 on a Cloud TPU in one command, then explain the results across TPU generations through native precision, memory bandwidth, slice shape and capacity. The key to the solution was measuring each claim on the rigs, with every ratio and price computed in code. The results were:
+The goal of this article was to serve Gemma 4 on a Cloud TPU in one command, then explain the results across TPU generations through native precision, memory bandwidth, slice shape and capacity. The key to the solution was measuring each claim on real hardware, with every ratio and price computed in code. The results were:
 
 - 🟢 **One v5e chip holds Gemma 4 E2B's full 131,072-token context**: a 321,280-token KV cache beside 8.97 GiB of bf16 weights, and a passphrase found at 10%, 50% and 90% depth of a 124,949-token prompt in 9.4 to 9.5 s.
 - 🟢 **The agent sends the right filter**: 3 of 3 runs on the v5e called `count_ids` with `id >= 10` and quoted 8.
@@ -311,10 +311,10 @@ The goal of this article was to serve Gemma 4 on a Cloud TPU in one command, the
 - 🟢 **v6e-1 serves 3.3x the L4's tokens** on the same 26B 4-bit checkpoint, with 3x the KV cache.
 - 🟢 **Flex-start halves on-demand** on every generation, and can undercut spot.
 - ⚠️ **Cold start takes 8.5 to 16.4 minutes**, most of it XLA compile; cache it.
-- ⚠️ **One-stream decode follows bandwidth**: 122 to 154 tok/s per TB/s on v5e, v6e and the L4.
+- 🟢 **One-stream decode follows bandwidth**: 122 to 154 tok/s per TB/s on v5e, v6e and the L4.
 - ❌ **Quota is permission to request; availability decides the grant**: 37 zones report v6e quota, 18 have v6e-1 hardware, and zones holding full quota still return stockout.
 
-Scope: the hands-on steps ran on one flex-start v5e-1 in us-west4-a on 2026-10-25, `google/gemma-4-E2B-it` in bf16 on `vllm/vllm-tpu:v0.30.0`, three demo runs and one long-context request per depth. The rest covers Gemma 4 E2B to 31B on Cloud TPU v5e and v6e, measured in the gemma4-dev rigs between July and October 2026 with vLLM and tpu-inference; L4 on Google Cloud g2 and AWS g6; MI300X on DigitalOcean; Inferentia2 and Trainium on AWS. The cross-vendor tokens-per-dollar table mixes vLLM builds, hosts and repeat counts, so it shows direction. v5p, TPU7x and Blackwell figures are Google's published specifications and list prices, read on 2026-10-12 and re-read on 2026-10-25 with the same values; spot prices are dated Billing Catalog reads.
+Scope: the hands-on steps ran on one flex-start v5e-1 in us-west4-a on 2026-10-25, `google/gemma-4-E2B-it` in bf16 on `vllm/vllm-tpu:v0.30.0`, three demo runs and one long-context request per depth. The rest covers Gemma 4 E2B to 31B on Cloud TPU v5e and v6e, measured on the gemma4-dev test setups between July and October 2026 with vLLM and tpu-inference; L4 on Google Cloud g2 and AWS g6; MI300X on DigitalOcean; Inferentia2 and Trainium on AWS. The cross-vendor tokens-per-dollar table mixes vLLM builds, hosts and repeat counts, so it shows direction. v5p, TPU7x and Blackwell figures are Google's published specifications and list prices, read on 2026-10-12 and re-read on 2026-10-25 with the same values; spot prices come from the Cloud Billing Catalog on recorded dates.
 
 The strategy for serving Gemma 4 on Google Cloud from v5e to Ironwood was validated with an incremental step by step approach.
 
