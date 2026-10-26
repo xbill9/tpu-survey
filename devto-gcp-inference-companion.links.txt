@@ -1,3 +1,4 @@
 devto = https://dev.to/gde/inference-on-google-cloud-precision-memory-and-capacity-on-tpu-from-v5e-to-ironwood-5dlf
 medium = https://medium.com/@xbill999/inference-on-google-cloud-precision-memory-and-capacity-on-tpu-from-v5e-to-ironwood-d41ae06b270f
 substack = https://xbill9.substack.com/p/inference-on-google-cloud-precision
+linkedin = https://www.linkedin.com/posts/xbill_tpu-inference-gcp-activity-7520473182005346304-ebyc
